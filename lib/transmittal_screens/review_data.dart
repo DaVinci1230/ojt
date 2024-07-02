@@ -1,9 +1,12 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:ojt/transmittal_screens/fetching_data.dart';
-
+import 'package:http/http.dart' as http;
 import '../admin_screens/notifications.dart';
 import '../models/user_transaction.dart';
+import '../screens_user/user_homepage.dart';
 import '../screens_user/user_menu.dart';
 import 'view_attachment.dart';
 
@@ -28,6 +31,7 @@ String createDocRef(String docType, String docNo) {
 class _ReviewDataState extends State<ReviewData> {
   int _selectedIndex = 0;
   final bool _showRemarks = false;
+  bool _isLoading = false;
 
   @override
   void initState() {
@@ -76,6 +80,60 @@ class _ReviewDataState extends State<ReviewData> {
         break;
     }
   }
+
+
+  Future<void> _uploadTransaction() async {
+  setState(() {
+    _isLoading = true; // Show loading indicator
+  });
+
+  try {
+    var uri = Uri.parse('http://192.168.68.113/localconnect/UserUploadUpdate/update_OPS.php');
+    var request = http.Request('POST', uri);
+
+    // URL-encode the values
+    var requestBody = 'doc_type=${Uri.encodeComponent(widget.transaction.docType)}&doc_no=${Uri.encodeComponent(widget.transaction.docNo)}&date_trans=${Uri.encodeComponent(widget.transaction.dateTrans)}';
+
+    request.headers['Content-Type'] = 'application/x-www-form-urlencoded';
+    request.body = requestBody;
+
+    var response = await request.send();
+
+    if (response.statusCode == 200) {
+      var responseBody = await response.stream.bytesToString();
+      var result = jsonDecode(responseBody);
+
+      if (result['status'] == 'Success') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(result['message'])),
+        );
+
+        // Navigate back to previous screen (DisbursementDetailsScreen)
+        Navigator.pop(context);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(result['message'])),
+        );
+      }
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content: Text(
+                'Transaction upload failed with status: ${response.statusCode}')),
+      );
+    }
+  } catch (e) {
+    print('Error uploading transaction: $e');
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+          content: Text('Error uploading transaction. Please try again later.')),
+    );
+  } finally {
+    setState(() {
+      _isLoading = false; // Hide loading indicator
+    });
+  }
+}
 
   Widget buildDetailsCard(Transaction detail) {
     return Card(
@@ -133,7 +191,7 @@ class _ReviewDataState extends State<ReviewData> {
         buildTableRow('Check', detail.checkNumber),
         buildTableRow('Bank', detail.bankName),
         buildTableRow('Amount', formatAmount(detail.checkAmount)),
-        buildTableRow('Status', detail.transactionStatus),
+        buildTableRow('Status', detail.transactionStatusWord),
         buildTableRow('Remarks', detail.remarks),
       ],
     );
@@ -259,19 +317,23 @@ class _ReviewDataState extends State<ReviewData> {
                       );
                     },
                   ),
-                  ElevatedButton(
-                    child: Row(
-                      children: [
-                        Icon(Icons.reviews),
-                        Text('  Review'),
-                      ],
-                    ),
+                     ElevatedButton.icon(
+                    onPressed: _isLoading
+                        ? null
+                        : () {
+                            _uploadTransaction();
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => UserHomePage(key: Key('value')),
+                              ),
+                            );
+                          },
+                    icon: Icon(Icons.reviews),
+                    label: Text('Review'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Color.fromARGB(255, 79, 129, 189),
                     ),
-                    onPressed: () {
-                      // add your button press logic here
-                    },
                   ),
                 ],
               ),
