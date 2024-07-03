@@ -7,6 +7,7 @@ import 'package:scrollable_table_view/scrollable_table_view.dart';
 
 import '../models/user_transaction.dart'; // Import your Transaction model
 import 'disbursement_details.dart';
+import 'no_support_details.dart';
 import 'user_menu.dart';
 import 'user_upload.dart'; // Import the DisbursementDetailsScreen
 
@@ -67,9 +68,9 @@ class _NoSupportScreenState extends State<NoSupportScreen> {
   Future<void> fetchTransactions() async {
     try {
       final response = await http.get(Uri.parse(
-          'http://192.168.68.111/localconnect/fetch_transaction_data.php'));
+          'http://192.168.68.113/localconnect/fetch_transaction_data.php'));
 
-      if (response.statusCode == 200) { 
+      if (response.statusCode == 200) {
         setState(() {
           final List<dynamic> data = json.decode(response.body);
           transactions = data
@@ -158,7 +159,7 @@ class _NoSupportScreenState extends State<NoSupportScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => DisbursementDetailsScreen(
+        builder: (context) => NoSupportDetails(
           transaction: transaction,
           selectedDetails: [], // Adjust based on your requirements
         ),

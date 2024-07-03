@@ -16,7 +16,7 @@ if ($conn->connect_error) {
 
 $currentDate = isset($_GET['date_trans']) ? $_GET['date_trans'] : date("Y-m-d");
 
-$sql = "SELECT * FROM tbl_gl_cdb_list WHERE doc_type = 'CV' AND (online_processing_status = 't' OR online_processing_status = 'tnd')";
+$sql = "SELECT * FROM tbl_gl_cdb_list WHERE doc_type = 'CV' AND (online_processing_status = 'U' OR online_processing_status = 'UND')";
 
 // Execute SQL query
 $result = $conn->query($sql);

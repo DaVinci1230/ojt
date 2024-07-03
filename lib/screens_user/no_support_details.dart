@@ -2,33 +2,34 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:ojt/transmittal_screens/fetching_data.dart';
+import 'package:ojt/screens_user/no_support.dart';
 import 'package:http/http.dart' as http;
+
 import '../admin_screens/notifications.dart';
 import '../models/user_transaction.dart';
-import '../screens_user/user_homepage.dart';
-import '../screens_user/user_menu.dart';
-import 'view_attachment.dart';
+import 'user_homepage.dart';
+import 'user_menu.dart';
+import 'user_upload.dart'; // Import your Transaction model
 
-class ReviewData extends StatefulWidget {
+class NoSupportDetails extends StatefulWidget {
   final Transaction transaction;
   final List<String> selectedDetails;
 
-  ReviewData({
+  NoSupportDetails({
     Key? key,
     required this.transaction,
     required this.selectedDetails,
   }) : super(key: key);
 
   @override
-  _ReviewDataState createState() => _ReviewDataState();
+  _NoSupportDetailsState createState() => _NoSupportDetailsState();
 }
 
 String createDocRef(String docType, String docNo) {
   return '$docType#$docNo';
 }
 
-class _ReviewDataState extends State<ReviewData> {
+class _NoSupportDetailsState extends State<NoSupportDetails> {
   int _selectedIndex = 0;
   final bool _showRemarks = false;
   bool _isLoading = false;
@@ -63,14 +64,14 @@ class _ReviewDataState extends State<ReviewData> {
       case 0:
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const TransmittalHomePage()),
+          MaterialPageRoute(builder: (context) => const HomePage()),
         );
         break;
       case 1:
-        // Navigator.pushReplacement(
-        //   context,
-        //   MaterialPageRoute(builder: (context) => DisbursementDetailsScreen()),
-        // );
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const NoSupportScreen()),
+        );
         break;
       case 2:
         Navigator.pushReplacement(
@@ -80,15 +81,14 @@ class _ReviewDataState extends State<ReviewData> {
         break;
     }
   }
-
-
+  
   Future<void> _uploadTransaction() async {
   setState(() {
     _isLoading = true; // Show loading indicator
   });
 
   try {
-    var uri = Uri.parse('http://192.168.68.116/localconnect/UserUploadUpdate/update_OPS.php');
+    var uri = Uri.parse('http://192.168.68.113/localconnect/UserUploadUpdate/update_OPS.php');
     var request = http.Request('POST', uri);
 
     // URL-encode the values
@@ -136,24 +136,45 @@ class _ReviewDataState extends State<ReviewData> {
 }
 
   Widget buildDetailsCard(Transaction detail) {
-    return Card(
-      semanticContainer: true,
-      borderOnForeground: true,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(15),
-      ),
-      elevation: 4,
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            buildReadOnlyTextField(
-                'Transacting Party', detail.transactingParty),
-            SizedBox(height: 20),
-            buildTable(detail),
-            SizedBox(height: 20),
-          ],
+    return Container(
+      child: Card(
+        semanticContainer: true,
+        borderOnForeground: true,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(15),
+        ),
+        elevation: 4,
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              buildReadOnlyTextField('Transacting Party', detail.transactingParty),
+              SizedBox(height: 20),
+              buildTable(detail),
+              SizedBox(height: 20),
+              Center(
+                child: ElevatedButton.icon(
+                    onPressed: _isLoading
+                        ? null
+                        : () {
+                            _uploadTransaction();
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => UserHomePage(key: Key('value')),
+                              ),
+                            );
+                          },
+                    icon: Icon(Icons.send),
+                    label: Text('Send'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Color.fromARGB(255, 79, 129, 189),
+                    ),
+                  ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -176,26 +197,26 @@ class _ReviewDataState extends State<ReviewData> {
 
   Widget buildTable(Transaction detail) {
     return Table(
-      columnWidths: {
-        0: FlexColumnWidth(1),
-        1: FlexColumnWidth(2),
-      },
-      border: TableBorder.all(
-        width: 1.0,
-        color: Colors.black,
-      ),
-      children: [
-        buildTableRow('Doc Ref', createDocRef(detail.docType, detail.docNo)),
-        buildTableRow('Date', formatDate(detail.transDate)),
-        buildTableRow('Payee', detail.transactingParty),
-        buildTableRow('Check', detail.checkNumber),
-        buildTableRow('Bank', detail.bankName),
-        buildTableRow('Amount', formatAmount(detail.checkAmount)),
-        buildTableRow('Status', detail.transactionStatusWord),
-        buildTableRow('Remarks', detail.remarks),
-      ],
-    );
-  }
+  columnWidths: {
+    0: FlexColumnWidth(1),
+    1: FlexColumnWidth(2),
+  },
+  border: TableBorder.all(
+    width: 1.0,
+    color: Colors.black,
+  ),
+  children: [
+    buildTableRow('Doc Ref', createDocRef(detail.docType, detail.docNo)),
+    buildTableRow('Date', formatDate(detail.transDate)),
+    buildTableRow('Payee', detail.transactingParty),
+    buildTableRow('Check', detail.checkNumber),
+    buildTableRow('Bank', detail.bankName),
+    buildTableRow('Amount', formatAmount(detail.checkAmount)),
+    buildTableRow('Status', detail.transactionStatusWord), // Use the getter here
+    buildTableRow('Remarks', detail.remarks),
+  ],
+);
+}
 
   TableRow buildTableRow(String label, String value) {
     return TableRow(
@@ -221,6 +242,7 @@ class _ReviewDataState extends State<ReviewData> {
     );
   }
 
+
   @override
   Widget build(BuildContext context) {
     Size screenSize = MediaQuery.of(context).size;
@@ -241,7 +263,7 @@ class _ReviewDataState extends State<ReviewData> {
                 ),
                 const SizedBox(width: 8),
                 const Text(
-                  'For Transmittal',
+                  'For Uploading',
                   style: TextStyle(
                     fontSize: 16,
                     fontFamily: 'Tahoma',
@@ -285,62 +307,15 @@ class _ReviewDataState extends State<ReviewData> {
         ),
       ),
       body: Padding(
-        padding: const EdgeInsets.all(16.0),
+       padding: const EdgeInsets.all(16.0),
         child: SingleChildScrollView(
           child: Column(
             children: [
               buildDetailsCard(widget.transaction),
-              SizedBox(height: 20),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  ElevatedButton(
-                    child: Row(
-                      children: [
-                        Icon(Icons.folder_open),
-                        Text('  View Files'),
-                      ],
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.grey[400],
-                    ),
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => TransViewAttachments(
-                            docType:
-                                'your_doc_type', // Replace with actual docType
-                            docNo: 'your_doc_no', // Replace with actual docNo
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                     ElevatedButton.icon(
-                    onPressed: _isLoading
-                        ? null
-                        : () {
-                            _uploadTransaction();
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => UserHomePage(key: Key('value')),
-                              ),
-                            );
-                          },
-                    icon: Icon(Icons.reviews),
-                    label: Text('Review'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Color.fromARGB(255, 79, 129, 189),
-                    ),
-                  ),
-                ],
-              ),
             ],
           ),
         ),
-      ),
+      ), 
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
         selectedItemColor: Color.fromARGB(255, 79, 128, 189),

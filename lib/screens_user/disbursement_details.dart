@@ -152,7 +152,7 @@ class _DisbursementDetailsScreenState extends State<DisbursementDetailsScreen> {
         buildTableRow('Check', detail.checkNumber),
         buildTableRow('Bank', detail.bankName),
         buildTableRow('Amount', formatAmount(detail.checkAmount)),
-        buildTableRow('Status', detail.transactionStatus),
+        buildTableRow('Status', detail.transactionStatusWord), 
         buildTableRow('Remarks', detail.remarks),
       ],
     );

@@ -6,6 +6,7 @@ import 'admin_menu_window.dart';
 import 'notifications.dart';
 import 'package:ojt/widgets/card.dart';
 import 'package:ojt/models/admin_transaction.dart';
+import 'package:intl/intl.dart';
 
 class AdminHomePage extends StatefulWidget {
   const AdminHomePage({Key? key}) : super(key: key);
@@ -18,6 +19,9 @@ class _AdminHomePageState extends State<AdminHomePage> {
   int _selectedIndex = 0;
   int pendingCount = 0;
   late Future<List<Transaction>> _transactionsFuture;
+  List<Transaction> selectedTransactions = [];
+  double totalSelectedAmount = 0.0; // Track the total selected amount
+  bool allSelected = false;
 
   @override
   void initState() {
@@ -39,8 +43,8 @@ class _AdminHomePageState extends State<AdminHomePage> {
           setState(() {
             pendingCount = fetchedTransactions
                 .where((transaction) =>
-                    transaction.onlineTransactionStatus == 'tnd' ||
-                    transaction.onlineTransactionStatus == 't')
+                    transaction.onlineTransactionStatus == 'TND' ||
+                    transaction.onlineTransactionStatus == 'T')
                 .length;
           });
           return fetchedTransactions;
@@ -54,6 +58,98 @@ class _AdminHomePageState extends State<AdminHomePage> {
     } catch (e) {
       throw Exception('Failed to fetch transaction details: $e');
     }
+  }
+
+  void _toggleTransactionSelection(Transaction transaction) {
+    setState(() {
+      if (selectedTransactions.contains(transaction)) {
+        selectedTransactions.remove(transaction);
+      } else {
+        selectedTransactions.add(transaction);
+      }
+      _calculateTotalSelectedAmount(selectedTransactions);
+    });
+  }
+
+  Future<void> _approvedTransaction(List<Transaction> transactions) async {
+    try {
+      for (Transaction transaction in transactions) {
+        final response = await http.post(
+          Uri.parse('http://127.0.0.1/localconnect/approve.php'),
+          body: {
+            'doc_no': transaction.docNo,
+            'doc_type': transaction.docType,
+          },
+        );
+
+        if (response.statusCode == 200) {
+          var responseData = json.decode(response.body);
+          if (responseData['status'] == 'success') {
+            // Handle success message if needed
+            print('Transaction ${transaction.docNo} rejected successfully');
+          } else {
+            throw Exception(
+                'Failed to approve transaction ${transaction.docNo}');
+          }
+        } else {
+          throw Exception('Failed to approve transaction ${transaction.docNo}');
+        }
+      }
+      // Show a single success message if all transactions were successfully declined
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Transactions approved successfully')),
+      );
+    } catch (e) {
+      print('Error rejeceting transactions: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error approve transactions: $e')),
+      );
+    }
+  }
+  Future<void> _rejectTransaction(List<Transaction> transactions) async {
+    try {
+      for (Transaction transaction in transactions) {
+        final response = await http.post(
+          Uri.parse('http://127.0.0.1/localconnect/reject.php'),
+          body: {
+            'doc_no': transaction.docNo,
+            'doc_type': transaction.docType,
+          },
+        );
+
+        if (response.statusCode == 200) {
+          var responseData = json.decode(response.body);
+          if (responseData['status'] == 'success') {
+            // Handle success message if needed
+            print('Transaction ${transaction.docNo} rejected successfully');
+          } else {
+            throw Exception(
+                'Failed to reject transaction ${transaction.docNo}');
+          }
+        } else {
+          throw Exception('Failed to reject transaction ${transaction.docNo}');
+        }
+      }
+      // Show a single success message if all transactions were successfully declined
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Transactions rejected successfully')),
+      );
+    } catch (e) {
+      print('Error rejeceting transactions: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error rejecting transactions: $e')),
+      );
+    }
+  }
+
+  void _calculateTotalSelectedAmount(List<Transaction> transactions) {
+    double totalAmount = 0.0;
+    transactions.forEach((transaction) {
+      totalAmount += double.parse(transaction.checkAmount);
+    });
+    setState(() {
+      totalSelectedAmount = totalAmount;
+    });
   }
 
   void _onItemTapped(int index) {
@@ -80,6 +176,39 @@ class _AdminHomePageState extends State<AdminHomePage> {
         );
         break;
     }
+  }
+
+  String _plusS(int pendingCount) {
+    if (pendingCount > 1) {
+      return 'Items';
+    } else if (pendingCount == 1) {
+      return 'Item';
+    } else {
+      return 'item'; // Handle other cases if needed
+    }
+  }
+
+  Widget buildSelectAllButton(List<Transaction> transactions) {
+    bool allSelected = selectedTransactions.length == transactions.length &&
+        transactions.isNotEmpty;
+
+    return IconButton(
+      onPressed: () {
+        setState(() {
+          if (!allSelected) {
+            selectedTransactions.clear();
+            selectedTransactions.addAll(transactions);
+          } else {
+            selectedTransactions.clear();
+          }
+          _calculateTotalSelectedAmount(selectedTransactions);
+        });
+      },
+      icon: Icon(
+        allSelected ? Icons.check_box : Icons.check_box_outline_blank,
+        size: 30,
+      ),
+    );
   }
 
   @override
@@ -171,8 +300,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
                 );
               },
               child: ClipRRect(
-                borderRadius:
-                    BorderRadius.circular(21.0), // Change the radius as needed
+                borderRadius: BorderRadius.circular(21.0),
                 child: Container(
                   color: Colors.blue,
                   padding:
@@ -207,8 +335,8 @@ class _AdminHomePageState extends State<AdminHomePage> {
                                   ),
                                 ),
                                 const SizedBox(width: 15),
-                                const Text(
-                                  'items',
+                                Text(
+                                  _plusS(pendingCount),
                                   style: TextStyle(
                                     fontSize: 24,
                                     fontWeight: FontWeight.bold,
@@ -250,18 +378,175 @@ class _AdminHomePageState extends State<AdminHomePage> {
                     ));
                   } else {
                     final List<Transaction> transactions = snapshot.data!;
-                    return SingleChildScrollView(
-                      child: Column(
-                        children: transactions.map((transaction) {
-                          return CustomCardExample(transaction: transaction,isSelected: false,);
-                        }).toList(),
-                      ),
+                    return Column(
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            SizedBox(
+                              width: screenSize.width * 0.01,
+                            ),
+                            Expanded(
+                              child: Text(
+                                'Total: ₱ ${NumberFormat('#,###.##').format(totalSelectedAmount)}',
+                                style: TextStyle(
+                                  fontSize: screenSize.width * 0.035,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color.fromARGB(255, 0, 0, 0),
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
+                              ),
+                            ),
+                            buildSelectAllButton(transactions),
+                            Text(
+                              'Select All',
+                              style: TextStyle(
+                                fontSize: screenSize.width * 0.03,
+                                fontWeight: FontWeight.bold,
+                                color: Color.fromARGB(255, 0, 0, 0),
+                              ),
+                            ),
+                            SizedBox(
+                              width: screenSize.width * .01,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 5),
+                        Expanded(
+                          child: SingleChildScrollView(
+                            child: Column(
+                              children: transactions.map((transaction) {
+                                return CustomCardExample(
+                                  transaction: transaction,
+                                  isSelectAll: false,
+                                  showSelectAllButton: false,
+                                  onSelectChanged: (bool isSelected) {
+                                    _toggleTransactionSelection(transaction);
+                                  },
+                                  onSelectedAmountChanged:
+                                      (double selectedAmount) {
+                                    print(
+                                        'Selected amount changed: $selectedAmount');
+                                    // Handle selected amount change here if needed
+                                  },
+                                  isSelected: selectedTransactions
+                                      .contains(transaction),
+                                );
+                              }).toList(),
+                            ),
+                          ),
+                        ),
+                        SizedBox(height: screenHeight * 0.0025),
+                      ],
                     );
                   }
                 },
               ),
             ),
           ],
+        ),
+      ),
+      floatingActionButton: Visibility(
+        visible: totalSelectedAmount > 0,
+        child: AnimatedContainer(
+          duration: Duration(milliseconds: 500),
+          width: screenSize.width * 0.6,
+          margin: EdgeInsets.only(
+            bottom: screenSize.height *
+                0.02, // Margin from bottom adjusted based on screen height
+            right: screenSize.width *
+                0.005, // Margin from right adjusted based on screen width
+          ),
+          padding: EdgeInsets.all(screenSize.width *
+              0.02), // Padding adjusted based on screen width
+          decoration: BoxDecoration(
+            color: Color.fromARGB(255, 0, 0, 0), // Transparent background
+            border: Border.all(color: Colors.blue, width: 2),
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(screenSize.width *
+                  0.05), // Border radius adjusted based on screen width
+              topRight: Radius.circular(screenSize.width *
+                  0.00), // Border radius adjusted based on screen width
+              bottomLeft: Radius.circular(screenSize.width *
+                  0.05), // Border radius adjusted based on screen width
+              bottomRight: Radius.circular(0),
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              SizedBox(width: screenSize.width * 0.02),
+              ElevatedButton.icon(
+                onPressed: () {
+                  _approvedTransaction(selectedTransactions);
+                  // _handleApproveAction(selectedTransactions);
+                },
+                icon: Icon(Icons.check,
+                    size: screenSize.width * 0.05,
+                    color: Colors
+                        .white), // Icon size adjusted based on screen width
+                label: Text(
+                  'Approve',
+                  style: TextStyle(
+                      fontSize: screenSize.width * 0.03,
+                      color: Colors
+                          .white), // Text size adjusted based on screen width
+                ),
+                style: ElevatedButton.styleFrom(
+                  padding: EdgeInsets.symmetric(
+                      horizontal: screenSize.width * 0.02,
+                      vertical: screenSize.width *
+                          0.015), // Padding adjusted based on screen width
+                  backgroundColor: Colors.blue, // Blue background color
+                  elevation: 0, // Remove shadow
+                  shadowColor: Colors.transparent, // Remove shadow color
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(screenSize.width *
+                        0.04), // Button border radius adjusted based on screen width
+                    side: BorderSide(
+                        color: Colors.blue,
+                        width: screenSize.width *
+                            0.01), // Button border width adjusted based on screen width
+                  ),
+                ),
+              ),
+              SizedBox(width: screenSize.width * 0.01),
+              ElevatedButton.icon(
+                onPressed: () {
+                  _rejectTransaction(selectedTransactions);
+                },
+                icon: Icon(Icons.cancel_rounded,
+                    size: screenSize.width * 0.03,
+                    color: Colors
+                        .white), // Icon size adjusted based on screen width
+                label: Text(
+                  'Reject',
+                  style: TextStyle(
+                      fontSize: screenSize.width * 0.03,
+                      color: Colors
+                          .white), // Text size adjusted based on screen width
+                ),
+                style: ElevatedButton.styleFrom(
+                  padding: EdgeInsets.symmetric(
+                      horizontal: screenSize.width * 0.02,
+                      vertical: screenSize.width *
+                          0.015), // Padding adjusted based on screen width
+                  backgroundColor: Colors.blue, // Blue background color
+                  elevation: 0, // Remove shadow
+                  shadowColor: Colors.transparent, // Remove shadow color
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(screenSize.width *
+                        0.04), // Button border radius adjusted based on screen width
+                    side: BorderSide(
+                        color: Colors.blue,
+                        width: screenSize.width *
+                            0.01), // Button border width adjusted based on screen width
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
       bottomNavigationBar: BottomNavigationBar(

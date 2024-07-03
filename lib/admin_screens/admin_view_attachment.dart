@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_pdfview/flutter_pdfview.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:dio/dio.dart';
+import 'package:image/image.dart' as Img;
 
 class ViewAttachments extends StatefulWidget {
   final String docType;
@@ -29,7 +30,7 @@ class _ViewAttachmentsState extends State<ViewAttachments> {
   Future<List<Attachment>> _fetchAttachments() async {
     try {
       var url = Uri.parse(
-          'http://192.168.68.119/localconnect/view_attachment.php?doc_type=${widget.docType}&doc_no=${widget.docNo}');
+          'http://192.168.68.116/localconnect/view_attachment.php?doc_type=${widget.docType}&doc_no=${widget.docNo}');
       var response = await http.get(url);
 
       if (response.statusCode == 200) {

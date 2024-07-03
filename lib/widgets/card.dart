@@ -8,31 +8,36 @@ import '/admin_screens/view_attachments.dart';
 class CustomCardExample extends StatefulWidget {
   final bool isSelected;
   final Transaction transaction;
+  final Function(bool)? onSelectChanged; // New callback
+  final ValueChanged<double>? onSelectedAmountChanged; // New callback
+  final bool showSelectAllButton; // New flag for showing Select All button
+  final bool isSelectAll; // New flag for tracking Select All state
 
   const CustomCardExample({
     Key? key,
     required this.transaction,
     required this.isSelected,
+    required this.onSelectChanged,
+    this.onSelectedAmountChanged,
+    required this.showSelectAllButton,
+    required this.isSelectAll,
   }) : super(key: key);
-
   @override
   _CustomCardExampleState createState() => _CustomCardExampleState();
 }
 
 class _CustomCardExampleState extends State<CustomCardExample>
     with SingleTickerProviderStateMixin {
-  bool isSelected = false;
   late AnimationController _controller;
   bool _showDetails = false;
   List<Map<String, dynamic>> _checkDetails = [];
 
   @override
   void initState() {
-    isSelected = widget.isSelected;
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: Duration(milliseconds: 1550),
+      duration: Duration(milliseconds: 500),
     );
     _fetchCheckDetails(widget.transaction.docNo, widget.transaction.docType);
   }
@@ -44,6 +49,8 @@ class _CustomCardExampleState extends State<CustomCardExample>
 
       if (response.statusCode == 200) {
         List<dynamic> data = json.decode(response.body);
+        data.sort((a, b) => DateTime.parse(b['date_trans'])
+            .compareTo(DateTime.parse(a['date_trans'])));
         setState(() {
           _checkDetails = List<Map<String, dynamic>>.from(data);
         });
@@ -52,15 +59,144 @@ class _CustomCardExampleState extends State<CustomCardExample>
       }
     } catch (e) {
       print('Error fetching check details: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error fetching check details: $e')),
+      );
+    }
+  }
+
+  Future<void> _returnTransaction(
+      String docNo, String docType, String approverRemarks) async {
+    try {
+      final response = await http.post(
+        Uri.parse('http://127.0.0.1/localconnect/return.php'),
+        body: {
+          'doc_no': docNo,
+          'doc_type': docType,
+          'approver_remarks': approverRemarks,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        var responseData = json.decode(response.body);
+        if (responseData['status'] == 'success') {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Transaction rejected successfully')),
+          );
+        } else {
+          throw Exception('Failed to reject transaction');
+        }
+      } else {
+        throw Exception('Failed to reject transaction');
+      }
+    } catch (e) {
+      print('Error rejecting transaction: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error rejecting transaction: $e')),
+      );
+    }
+  }
+
+  void _toggleSelection() {
+    widget.onSelectChanged?.call(!widget.transaction.isSelected);
+  }
+
+  void _showRemarksDialog(BuildContext context, String docNo, String docType,
+      String currentRemarks) {
+    TextEditingController _remarksController =
+        TextEditingController(text: currentRemarks);
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Remarks'),
+          content: TextField(
+            controller: _remarksController,
+            decoration: InputDecoration(
+              hintText: 'Enter your remarks here',
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: Text('Cancel'),
+              onPressed: () {
+                Navigator.of(context).pop(); // Close the dialog
+              },
+            ),
+            ElevatedButton(
+              child: Text('Send'),
+              onPressed: () {
+                // Handle send action here
+                String remarks =
+                    _remarksController.text.trim(); // Trim whitespace
+                if (remarks.isNotEmpty) {
+                  print('Remarks: $remarks');
+                  _returnTransaction(docNo, docType, remarks).then((_) {
+                    Navigator.of(context)
+                        .pop(); // Close the dialog after successful transaction
+                  }).catchError((error) {
+                    print('Error updating remarks: $error');
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Error updating remarks: $error'),
+                      ),
+                    );
+                  });
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Remarks cannot be empty'),
+                    ),
+                  );
+                }
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _rejectTransaction(String docNo, String docType) async {
+    try {
+      final response = await http.post(
+        Uri.parse('http://127.0.0.1/localconnect/reject.php'),
+        body: {
+          'doc_no': docNo,
+          'doc_type': docType,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        var responseData = json.decode(response.body);
+        if (responseData['status'] == 'success') {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Transaction declined successfully')),
+          );
+        } else {
+          throw Exception('Failed to decline transaction');
+        }
+      } else {
+        throw Exception('Failed to decline transaction');
+      }
+    } catch (e) {
+      print('Error declining transaction: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error declining transaction: $e')),
+      );
     }
   }
 
   Widget _buildCheckDetailsTable(List<Map<String, dynamic>> checkDetailsList) {
     List<TableRow> rows = [];
+
+    // Function to add a table row for debit or credit details
     void addTableRow(Map<String, dynamic> details, bool showDebit, int index) {
+      // Determine if to show the peso sign based on the index
       String amountText = showDebit
           ? '${index == 0 ? '₱' : ''}${NumberFormat('#,###.##').format(double.parse(details['debit_amount']))} DR'
-          : '${index == 0 ? '' : ''}${NumberFormat('#,###.##').format(double.parse(details['credit_amount']))} CR';
+          : '${NumberFormat('#,###.##').format(double.parse(details['credit_amount']))} CR';
 
       rows.add(
         TableRow(
@@ -90,6 +226,7 @@ class _CustomCardExampleState extends State<CustomCardExample>
       );
     }
 
+    // Collect debit and credit transactions separately
     List<Map<String, dynamic>> debits = checkDetailsList
         .where((details) =>
             details.containsKey('debit_amount') &&
@@ -105,22 +242,18 @@ class _CustomCardExampleState extends State<CustomCardExample>
             double.tryParse(details['credit_amount'].toString()) != null &&
             double.parse(details['credit_amount'].toString()) != 0)
         .toList();
-    int maxLength =
-        debits.length > credits.length ? debits.length : credits.length;
-    for (int i = 0; i < maxLength; i++) {
-      Map<String, dynamic>? debitDetails = i < debits.length ? debits[i] : null;
-      Map<String, dynamic>? creditDetails =
-          i < credits.length ? credits[i] : null;
 
-      if (debitDetails != null) {
-        addTableRow(debitDetails, true, i);
-      }
-
-      if (creditDetails != null) {
-        addTableRow(creditDetails, false, i);
-      }
+    // Add debit transactions first
+    for (int i = 0; i < debits.length; i++) {
+      addTableRow(debits[i], true, i);
     }
 
+    // Add credit transactions next
+    for (int i = 0; i < credits.length; i++) {
+      addTableRow(credits[i], false, i);
+    }
+
+    // Return the table with rows
     return Column(
       children: [
         Table(
@@ -160,20 +293,6 @@ class _CustomCardExampleState extends State<CustomCardExample>
             ),
             ...rows,
           ],
-        ),
-        SizedBox(
-          height: 5,
-        ),
-        Container(
-          child: Row(children: [
-            Text(
-              'Status: ${widget.transaction.onlineTransactionStatus}',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.white,
-              ),
-            ),
-          ]),
         ),
         SizedBox(
           height: 5,
@@ -225,9 +344,16 @@ class _CustomCardExampleState extends State<CustomCardExample>
               height: 2,
             ),
             ElevatedButton.icon(
-              onPressed: () {},
-              icon: Icon(Icons.thumb_down_alt_outlined),
-              label: Text('Reject'),
+              onPressed: () {
+                _showRemarksDialog(
+                  context,
+                  widget.transaction.docNo,
+                  widget.transaction.docType,
+                  widget.transaction.approverRemarks,
+                );
+              },
+              icon: Icon(Icons.keyboard_return_outlined),
+              label: Text('Return'),
               style: ElevatedButton.styleFrom(
                 padding: EdgeInsets.all(12),
                 backgroundColor: const Color.fromARGB(255, 187, 196, 204),
@@ -238,9 +364,12 @@ class _CustomCardExampleState extends State<CustomCardExample>
               height: 2,
             ),
             ElevatedButton.icon(
-              onPressed: () {},
-              icon: Icon(Icons.cancel_outlined),
-              label: Text('Decline'),
+              onPressed: () {
+                _rejectTransaction(
+                    widget.transaction.docNo, widget.transaction.docType);
+              },
+              icon: Icon(Icons.cancel_rounded),
+              label: Text('Reject'),
               style: ElevatedButton.styleFrom(
                 padding: EdgeInsets.all(12),
                 backgroundColor: const Color.fromARGB(255, 187, 196, 204),
@@ -251,6 +380,20 @@ class _CustomCardExampleState extends State<CustomCardExample>
         ),
       ],
     );
+  }
+
+  Icon _buildCheckboxIcon() {
+    if (widget.isSelected) {
+      return Icon(
+        Icons.check_box,
+        color: Colors.white,
+      );
+    } else {
+      return Icon(
+        Icons.check_box_outline_blank,
+        color: Colors.white,
+      );
+    }
   }
 
   @override
@@ -268,8 +411,9 @@ class _CustomCardExampleState extends State<CustomCardExample>
     return AnimatedContainer(
       duration: Duration(milliseconds: 500),
       curve: Curves.easeInOut,
-      height: _showDetails ? null : screenHeight * 0.292,
+      height: _showDetails ? null : screenHeight * 0.305,
       child: Card(
+        shadowColor: Colors.white,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(screenWidth * 0.03),
         ),
@@ -478,17 +622,8 @@ class _CustomCardExampleState extends State<CustomCardExample>
                     ),
                   ),
                   IconButton(
-                    icon: Icon(
-                      isSelected
-                          ? Icons.check_box
-                          : Icons.check_box_outline_blank,
-                      color: Colors.white,
-                    ),
-                    onPressed: () {
-                      setState(() {
-                        isSelected = !isSelected;
-                      });
-                    },
+                    onPressed: _toggleSelection,
+                    icon: _buildCheckboxIcon(),
                   ),
                 ],
               ),

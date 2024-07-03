@@ -43,7 +43,22 @@ class Transaction {
       checkNumber: json['check_no'].toString(),
       bankName: json['check_drawee_bank'].toString(),
       dateTrans: json['date_trans'].toString(),
-      onlineProcessingStatus: json['online_processing_status']?.toString(), // Initialize with null safety
+      onlineProcessingStatus: json['online_processing_status'], // Initialize with null safety
     );
+  }
+
+  String get transactionStatusWord {
+    switch (transactionStatus) {
+      case 'A':
+        return 'Approved';
+      case 'R':
+        return 'Reviewed';
+      case 'S':
+        return 'Submitted';
+      case 'NS':
+        return 'Cancelled';
+      default:
+        return 'Unknown';
+    }
   }
 }

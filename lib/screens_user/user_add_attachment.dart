@@ -10,7 +10,6 @@ import 'package:mime/mime.dart';
 import 'package:http_parser/http_parser.dart';
 
 import '../models/user_transaction.dart';
-import 'no_support.dart';
 import 'user_homepage.dart';
 import 'user_menu.dart';
 import 'user_send_attachment.dart';
@@ -50,12 +49,6 @@ class _UserAddAttachmentState extends State<UserAddAttachment> {
           MaterialPageRoute(builder: (context) => const HomePage()),
         );
         break;
-      case 1:
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const NoSupportScreen()),
-        );
-        break;
       case 2:
         Navigator.pushReplacement(
           context,
@@ -81,11 +74,95 @@ class _UserAddAttachmentState extends State<UserAddAttachment> {
             'size': file.size,
           });
         }
-      //  developer.log('Attachments array after adding: $attachments');
+        //  developer.log('Attachments array after adding: $attachments');
       });
-       developer.log('Files picked: ${result.files.length}');
+      developer.log('Files picked: ${result.files.length}');
     } else {
       developer.log('File picking cancelled');
+    }
+  }
+
+  Future<void> _uploadFile(PlatformFile pickedFile) async {
+    setState(() {
+      _isLoading = true; // Show loading indicator
+    });
+
+    try {
+      var request = http.MultipartRequest(
+        'POST',
+        Uri.parse(
+            'http://192.168.68.116/localconnect/UserUploadUpdate/upload_asset.php'),
+      );
+      // Add the 'doc_type', 'doc_no', and 'date_trans' fields to the request
+      request.fields['doc_type'] = widget.transaction.docType.toString();
+      request.fields['doc_no'] = widget.transaction.docNo.toString();
+      request.fields['date_trans'] = widget.transaction.dateTrans.toString();
+      
+      request.files.add(
+        http.MultipartFile.fromBytes(
+          'file',
+          pickedFile.bytes!,
+          filename: pickedFile.name,
+        ),
+      );
+
+      developer.log('Uploading file: ${pickedFile.name}');
+      var response = await request.send();
+
+      if (response.statusCode == 200) {
+        var responseBody = await response.stream.bytesToString();
+        developer.log('Upload response: $responseBody');
+
+        try {
+          var result = jsonDecode(responseBody);
+          if (result['status'] == 'success') {
+            setState(() {
+              attachments
+                  .removeWhere((element) => element['name'] == _fileName);
+              attachments.add({'name': _fileName!, 'status': 'Uploaded'});
+              developer.log('Attachments array after uploading: $attachments');
+            });
+
+            // _showDialog(
+            //   context,
+            //   'Success',
+            //   'File uploaded successfully!',
+            // );
+          } else {
+            _showDialog(
+              context,
+              'Error',
+              'File upload failed: ${result['message']}',
+            );
+            developer.log('File upload failed: ${result['message']}');
+          }
+        } catch (e) {
+          _showDialog(
+            context,
+            'Error',
+            'Error uploading file. Please try again later.',
+          );
+          developer.log('Error parsing upload response: $e');
+        }
+      } else {
+        _showDialog(
+          context,
+          'Error',
+          'File upload failed with status: ${response.statusCode}',
+        );
+        developer.log('File upload failed with status: ${response.statusCode}');
+      }
+    } catch (e) {
+      developer.log('Error uploading file: $e');
+      _showDialog(
+        context,
+        'Error',
+        'Error uploading file. Please try again later.',
+      );
+    } finally {
+      setState(() {
+        _isLoading = false; // Hide loading indicator
+      });
     }
   }
 
@@ -109,64 +186,64 @@ class _UserAddAttachmentState extends State<UserAddAttachment> {
 
   @override
   Widget build(BuildContext context) {
-  Size screenSize = MediaQuery.of(context).size;
-  return Scaffold(
-    appBar: AppBar(
-      backgroundColor: const Color.fromARGB(255, 79, 128, 189),
-      toolbarHeight: 77,
-      title: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            children: [
-              Image.asset(
-                'logo.png',
-                width: 60,
-                height: 55,
-              ),
-              const SizedBox(width: 8),
-              const Text(
-                'For Uploading',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontFamily: 'Tahoma',
-                  color: Color.fromARGB(255, 233, 227, 227),
+    Size screenSize = MediaQuery.of(context).size;
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: const Color.fromARGB(255, 79, 128, 189),
+        toolbarHeight: 77,
+        title: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                Image.asset(
+                  'logo.png',
+                  width: 60,
+                  height: 55,
                 ),
-              ),
-            ],
-          ),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              Container(
-                margin: EdgeInsets.only(right: screenSize.width * 0.02),
-                child: IconButton(
+                const SizedBox(width: 8),
+                const Text(
+                  'For Uploading',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontFamily: 'Tahoma',
+                    color: Color.fromARGB(255, 233, 227, 227),
+                  ),
+                ),
+              ],
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Container(
+                  margin: EdgeInsets.only(right: screenSize.width * 0.02),
+                  child: IconButton(
+                    onPressed: () {
+                      // Handle notifications button tap
+                    },
+                    icon: const Icon(
+                      Icons.notifications,
+                      size: 24,
+                      color: Color.fromARGB(255, 233, 227, 227),
+                    ),
+                  ),
+                ),
+                IconButton(
                   onPressed: () {
-                    // Handle notifications button tap
+                    // Handle user profile button tap
                   },
                   icon: const Icon(
-                    Icons.notifications,
+                    Icons.person,
                     size: 24,
                     color: Color.fromARGB(255, 233, 227, 227),
                   ),
                 ),
-              ),
-              IconButton(
-                onPressed: () {
-                  // Handle user profile button tap
-                },
-                icon: const Icon(
-                  Icons.person,
-                  size: 24,
-                  color: Color.fromARGB(255, 233, 227, 227),
-                ),
-              ),
-            ],
-          ),
-        ],
+              ],
+            ),
+          ],
+        ),
       ),
-    ),
-     body: Column(
+      body: Column(
         children: [
           Expanded(
             child: Padding(
@@ -260,21 +337,32 @@ class _UserAddAttachmentState extends State<UserAddAttachment> {
                             for (var attachment in attachmentsString) {
                               if (attachment['name'] == null ||
                                   attachment['name']!.isEmpty) {
-                                developer.log('Error: attachment name is null or empty');
+                                developer.log(
+                                    'Error: attachment name is null or empty');
                                 return;
                               }
 
                               if (attachment['bytes'] == null) {
-                                developer.log('Error: attachment bytes are null');
+                                developer
+                                    .log('Error: attachment bytes are null');
                                 return;
                               }
 
                               if (attachment['size'] == null ||
                                   attachment['size']!.isEmpty ||
                                   int.parse(attachment['size']!) <= 0) {
-                                developer.log('Error: attachment size is null or invalid');
+                                developer.log(
+                                    'Error: attachment size is null or invalid');
                                 return;
                               }
+                            }
+
+                            for (var attachment in attachments) {
+                              _uploadFile(PlatformFile(
+                                name: attachment['name'],
+                                size: attachment['size'],
+                                bytes: attachment['bytes'],
+                              ));
                             }
 
                             Navigator.push(
@@ -289,8 +377,9 @@ class _UserAddAttachmentState extends State<UserAddAttachment> {
                             );
                           },
                           style: ElevatedButton.styleFrom(
-                           backgroundColor: Color.fromARGB(255, 79, 129, 189),
-                         ),
+                            backgroundColor:
+                                const Color.fromARGB(255, 79, 129, 189),
+                          ),
                           child: const Text('Attach File'),
                         ),
                       ],

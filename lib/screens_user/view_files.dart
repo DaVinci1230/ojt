@@ -146,12 +146,9 @@ class _ViewFilesPageState extends State<ViewFilesPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
+                        Image.asset(
                           attachment['name']!,
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
+                          
                         ),
                         Text(attachment['status']!),
                       ],
