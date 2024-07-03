@@ -6,20 +6,21 @@ import '../admin_screens/notifications.dart';
 import '../models/user_transaction.dart';
 import 'user_add_attachment.dart';
 import 'user_menu.dart';
-import 'user_upload.dart'; // Import your Transaction model
+import 'user_upload.dart';
 
 class DisbursementDetailsScreen extends StatefulWidget {
-  final Transaction transaction;
-  final List<String> selectedDetails;
+  final Transaction? transaction;
+  final List selectedDetails;
 
-  DisbursementDetailsScreen({
+  const DisbursementDetailsScreen({
     Key? key,
-    required this.transaction,
-    required this.selectedDetails,
+    this.transaction,
+    this.selectedDetails = const [],
   }) : super(key: key);
 
   @override
-  _DisbursementDetailsScreenState createState() => _DisbursementDetailsScreenState();
+  _DisbursementDetailsScreenState createState() =>
+      _DisbursementDetailsScreenState();
 }
 
 String createDocRef(String docType, String docNo) {
@@ -78,7 +79,16 @@ class _DisbursementDetailsScreenState extends State<DisbursementDetailsScreen> {
     }
   }
 
-  Widget buildDetailsCard(Transaction detail) {
+  Widget buildDetailsCard(Transaction? detail) {
+    if (detail == null) {
+      return Center(
+        child: Text(
+          'No Transaction Details Available',
+          style: TextStyle(fontSize: 18, fontFamily: 'Tahoma'),
+        ),
+      );
+    }
+
     return Container(
       child: Card(
         semanticContainer: true,
@@ -92,17 +102,19 @@ class _DisbursementDetailsScreenState extends State<DisbursementDetailsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              buildReadOnlyTextField('Transacting Party', detail.transactingParty),
+              buildReadOnlyTextField(
+                  'Transacting Party', detail.transactingParty),
               SizedBox(height: 20),
               buildTable(detail),
               SizedBox(height: 20),
               Center(
                 child: TextButton(
                   onPressed: () {
-                    // Navigate to Add Attachment Screen
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => UserAddAttachment(transaction: detail, selectedDetails: [])),
+                      MaterialPageRoute(
+                          builder: (context) => UserAddAttachment(
+                              transaction: detail, selectedDetails: [])),
                     );
                   },
                   child: Text('Add Attachment'),
@@ -182,11 +194,9 @@ class _DisbursementDetailsScreenState extends State<DisbursementDetailsScreen> {
     );
   }
 
-
   @override
   Widget build(BuildContext context) {
     Size screenSize = MediaQuery.of(context).size;
-
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Color.fromARGB(255, 79, 128, 189),
@@ -247,7 +257,7 @@ class _DisbursementDetailsScreenState extends State<DisbursementDetailsScreen> {
         ),
       ),
       body: Padding(
-       padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(16.0),
         child: SingleChildScrollView(
           child: Column(
             children: [
@@ -255,7 +265,7 @@ class _DisbursementDetailsScreenState extends State<DisbursementDetailsScreen> {
             ],
           ),
         ),
-      ), 
+      ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
         selectedItemColor: Color.fromARGB(255, 79, 128, 189),

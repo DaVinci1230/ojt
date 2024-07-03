@@ -1,41 +1,50 @@
 import 'dart:convert';
-
-import 'package:flutter/material.dart';
+import 'dart:io';
+import 'dart:typed_data';
+import 'package:file_picker/file_picker.dart';
+import 'dart:developer' as developer;
 import 'package:intl/intl.dart';
-import 'package:ojt/transmittal_screens/fetching_data.dart';
+import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:ojt/transmittal_screens/view_attachment.dart';
 import '../admin_screens/notifications.dart';
 import '../models/user_transaction.dart';
-import '../screens_user/user_homepage.dart';
+import '../screens_user/transmitter_homepage.dart';
 import '../screens_user/user_menu.dart';
-import 'view_attachment.dart';
+import '../screens_user/user_upload.dart';
+
 
 class ReviewData extends StatefulWidget {
   final Transaction transaction;
-  final List<String> selectedDetails;
+  final List selectedDetails;
+  final List<Map<String, String>> attachments;
 
-  ReviewData({
+  const ReviewData({
     Key? key,
     required this.transaction,
     required this.selectedDetails,
+    required this.attachments,
   }) : super(key: key);
 
   @override
   _ReviewDataState createState() => _ReviewDataState();
 }
 
-String createDocRef(String docType, String docNo) {
-  return '$docType#$docNo';
-}
-
 class _ReviewDataState extends State<ReviewData> {
   int _selectedIndex = 0;
-  final bool _showRemarks = false;
+  bool _showRemarks = false;
   bool _isLoading = false;
+
+  List<Map<String, String>> attachments = [];
 
   @override
   void initState() {
     super.initState();
+    attachments = widget.attachments; // Initialize attachments list
+  }
+
+  String createDocRef(String docType, String docNo) {
+    return '$docType#$docNo';
   }
 
   String formatDate(DateTime date) {
@@ -63,13 +72,13 @@ class _ReviewDataState extends State<ReviewData> {
       case 0:
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const TransmittalHomePage()),
+          MaterialPageRoute(builder: (context) => const HomePage()),
         );
         break;
       case 1:
         // Navigator.pushReplacement(
         //   context,
-        //   MaterialPageRoute(builder: (context) => DisbursementDetailsScreen()),
+        //   MaterialPageRoute(builder: (context) => const NoSupportScreen()),
         // );
         break;
       case 2:
@@ -81,8 +90,7 @@ class _ReviewDataState extends State<ReviewData> {
     }
   }
 
-
-  Future<void> _uploadTransaction() async {
+   Future<void> _uploadTransaction() async {
   setState(() {
     _isLoading = true; // Show loading indicator
   });
@@ -136,24 +144,28 @@ class _ReviewDataState extends State<ReviewData> {
 }
 
   Widget buildDetailsCard(Transaction detail) {
-    return Card(
-      semanticContainer: true,
-      borderOnForeground: true,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(15),
-      ),
-      elevation: 4,
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            buildReadOnlyTextField(
-                'Transacting Party', detail.transactingParty),
-            SizedBox(height: 20),
-            buildTable(detail),
-            SizedBox(height: 20),
-          ],
+    return Container(
+      height: 450,
+      child: Card(
+        semanticContainer: true,
+        borderOnForeground: true,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(15),
+        ),
+        elevation: 4,
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              buildReadOnlyTextField(
+                  'Transacting Party', detail.transactingParty),
+              SizedBox(height: 20),
+              buildTable(detail),
+              SizedBox(height: 20),
+              
+            ],
+          ),
         ),
       ),
     );
@@ -187,11 +199,10 @@ class _ReviewDataState extends State<ReviewData> {
       children: [
         buildTableRow('Doc Ref', createDocRef(detail.docType, detail.docNo)),
         buildTableRow('Date', formatDate(detail.transDate)),
-        buildTableRow('Payee', detail.transactingParty),
         buildTableRow('Check', detail.checkNumber),
         buildTableRow('Bank', detail.bankName),
         buildTableRow('Amount', formatAmount(detail.checkAmount)),
-        buildTableRow('Status', detail.transactionStatusWord),
+        buildTableRow('Status', detail.transactionStatus),
         buildTableRow('Remarks', detail.remarks),
       ],
     );
@@ -221,103 +232,109 @@ class _ReviewDataState extends State<ReviewData> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    Size screenSize = MediaQuery.of(context).size;
 
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Color.fromARGB(255, 79, 128, 189),
-        toolbarHeight: 77,
-        title: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Row(
-              children: [
-                Image.asset(
-                  'logo.png',
-                  width: 60,
-                  height: 55,
+@override
+Widget build(BuildContext context) {
+  Size screenSize = MediaQuery.of(context).size;
+
+  return Scaffold(
+    appBar: AppBar(
+      backgroundColor: Color.fromARGB(255, 79, 128, 189),
+      toolbarHeight: 77,
+      title: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Image.asset(
+                'logo.png',
+                width: 60,
+                height: 55,
+              ),
+              const SizedBox(width: 8),
+              const Text(
+                'Attachments',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontFamily: 'Tahoma',
+                  color: Color.fromARGB(255, 233, 227, 227),
                 ),
-                const SizedBox(width: 8),
-                const Text(
-                  'For Transmittal',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontFamily: 'Tahoma',
-                    color: Color.fromARGB(255, 233, 227, 227),
-                  ),
-                ),
-              ],
-            ),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                Container(
-                  margin: EdgeInsets.only(right: screenSize.width * 0.02),
-                  child: IconButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => NotificationScreen(),
-                        ),
-                      );
-                    },
-                    icon: const Icon(
-                      Icons.notifications,
-                      size: 24,
-                      color: Color.fromARGB(255, 233, 227, 227),
-                    ),
-                  ),
-                ),
-                IconButton(
-                  onPressed: () {},
+              ),
+            ],
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              Container(
+                margin: EdgeInsets.only(right: screenSize.width * 0.02),
+                child: IconButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (context) => NotificationScreen()),
+                    );
+                  },
                   icon: const Icon(
-                    Icons.person,
+                    Icons.notifications,
                     size: 24,
                     color: Color.fromARGB(255, 233, 227, 227),
                   ),
                 ),
-              ],
-            ),
-          ],
-        ),
+              ),
+              IconButton(
+                onPressed: () {},
+                icon: const Icon(
+                  Icons.person,
+                  size: 24,
+                  color: Color.fromARGB(255, 233, 227, 227),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: SingleChildScrollView(
-          child: Column(
-            children: [
-              buildDetailsCard(widget.transaction),
-              SizedBox(height: 20),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  ElevatedButton(
-                    child: Row(
-                      children: [
-                        Icon(Icons.folder_open),
-                        Text('  View Files'),
-                      ],
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.grey[400],
-                    ),
+    ),
+    body: Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        children: [
+          buildDetailsCard(widget.transaction),
+          Spacer(), // Pushes the buttons to the bottom
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16.0), // Add some bottom padding
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
                     onPressed: () {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => TransViewAttachments(
-                            docType:
-                                'your_doc_type', // Replace with actual docType
-                            docNo: 'your_doc_no', // Replace with actual docNo
+                          builder: (context) => ViewTransmit(
+                            attachments: widget.attachments,
+                            onDelete: (int index) {
+                              setState(() {
+                                attachments.removeAt(index);
+                              });
+                              developer.log(
+                                  'Attachment removed from UserSendAttachment: $index');
+                            },
                           ),
                         ),
                       );
                     },
+                    icon: Icon(Icons.folder_open),
+                    label: Text('View Files'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.grey[400],
+                    ),
                   ),
-                     ElevatedButton.icon(
+                ),
+                SizedBox(width: 10),
+                Expanded(
+                  child: ElevatedButton.icon(
                     onPressed: _isLoading
                         ? null
                         : () {
@@ -325,7 +342,7 @@ class _ReviewDataState extends State<ReviewData> {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => UserHomePage(key: Key('value')),
+                                builder: (context) => TransmitterHomePage(key: Key('value')),
                               ),
                             );
                           },
@@ -335,31 +352,32 @@ class _ReviewDataState extends State<ReviewData> {
                       backgroundColor: Color.fromARGB(255, 79, 129, 189),
                     ),
                   ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        selectedItemColor: Color.fromARGB(255, 79, 128, 189),
-        onTap: _onItemTapped,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.upload_file_outlined),
-            label: 'Upload',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.quiz),
-            label: 'No Support',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.menu_sharp),
-            label: 'Menu',
+                ),
+              ],
+            ),
           ),
         ],
       ),
-    );
-  }
+    ),
+    bottomNavigationBar: BottomNavigationBar(
+      currentIndex: _selectedIndex,
+      selectedItemColor: Color.fromARGB(255, 79, 128, 189),
+      onTap: _onItemTapped,
+      items: const [
+        BottomNavigationBarItem(
+          icon: Icon(Icons.upload_file_outlined),
+          label: 'Upload',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.quiz),
+          label: 'No Support',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.menu_sharp),
+          label: 'Menu',
+        ),
+      ],
+    ),
+  );
+}
 }

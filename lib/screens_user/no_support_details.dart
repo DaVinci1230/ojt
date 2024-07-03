@@ -7,7 +7,7 @@ import 'package:http/http.dart' as http;
 
 import '../admin_screens/notifications.dart';
 import '../models/user_transaction.dart';
-import 'user_homepage.dart';
+import 'transmitter_homepage.dart';
 import 'user_menu.dart';
 import 'user_upload.dart'; // Import your Transaction model
 
@@ -162,7 +162,7 @@ class _NoSupportDetailsState extends State<NoSupportDetails> {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => UserHomePage(key: Key('value')),
+                                builder: (context) => TransmitterHomePage(key: Key('value')),
                               ),
                             );
                           },

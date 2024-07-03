@@ -158,7 +158,7 @@ class _TransmittalHomePageState extends State<TransmittalHomePage> {
       MaterialPageRoute(
         builder: (context) => ReviewData(
           transaction: transaction,
-          selectedDetails: [], // Adjust based on your requirements
+          selectedDetails: [], attachments: [], // Adjust based on your requirements
         ),
       ),
     );

@@ -5,14 +5,14 @@ import 'user_menu.dart';
 import 'user_upload.dart';
 import 'package:flutter/material.dart';
 
-class UserHomePage extends StatefulWidget {
-  const UserHomePage({Key? key}) : super(key: key);
+class TransmitterHomePage extends StatefulWidget {
+  const TransmitterHomePage({Key? key}) : super(key: key);
 
   @override
-  _UserHomePageState createState() => _UserHomePageState();
+  _TransmitterHomePageState createState() => _TransmitterHomePageState();
 }
 
-class _UserHomePageState extends State<UserHomePage> {
+class _TransmitterHomePageState extends State<TransmitterHomePage> {
   int _selectedIndex = 0;
 
   void _onItemTapped(int index) {
@@ -26,7 +26,7 @@ class _UserHomePageState extends State<UserHomePage> {
       case 0:
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const UserHomePage()),
+          MaterialPageRoute(builder: (context) => const TransmitterHomePage()),
         );
         break;
       case 1:

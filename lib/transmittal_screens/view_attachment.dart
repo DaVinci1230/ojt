@@ -1,203 +1,188 @@
 import 'dart:convert';
-import 'dart:io';
+
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'package:url_launcher/url_launcher.dart';
-import 'package:flutter_pdfview/flutter_pdfview.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:dio/dio.dart';
+import 'package:path/path.dart';
+import 'package:flutter/services.dart' show rootBundle;
 
-class TransViewAttachments extends StatefulWidget {
-  final String docType;
-  final String docNo;
+import '../admin_screens/notifications.dart';
 
-  TransViewAttachments({
-    required this.docType,
-    required this.docNo,
-  });
+class ViewTransmit extends StatefulWidget {
+  final List<Map<String, String>> attachments;
+  final Function(int index) onDelete;
+
+  const ViewTransmit({
+    Key? key,
+    required this.attachments,
+    required this.onDelete,
+  }) : super(key: key);
 
   @override
-  _TransViewAttachmentsState createState() => _TransViewAttachmentsState();
+  _ViewTransmitState createState() => _ViewTransmitState();
 }
 
-class _TransViewAttachmentsState extends State<TransViewAttachments> {
-  late Future<List<Attachment>> _attachmentsFuture;
+class _ViewTransmitState extends State<ViewTransmit> {
+  List<Map<String, String>> _attachments = [];
 
   @override
   void initState() {
     super.initState();
-    _attachmentsFuture = _fetchAttachments();
+    _attachments = List.from(widget.attachments);
   }
 
-  Future<List<Attachment>> _fetchAttachments() async {
-    try {
-      var url = Uri.parse(
-          'http://127.0.0.1/localconnect/view_attachment.php?doc_type=${widget.docType}&doc_no=${widget.docNo}');
-      var response = await http.get(url);
-
-      if (response.statusCode == 200) {
-        var jsonData = jsonDecode(response.body);
-        if (jsonData is List) {
-          return jsonData
-              .map((attachment) => Attachment.fromJson(attachment))
-              .toList();
-        } else {
-          throw Exception('Unexpected response format');
-        }
-      } else {
-        throw Exception('Failed to load attachments: ${response.statusCode}');
-      }
-    } catch (e) {
-      throw Exception('Failed to fetch attachments: $e');
-    }
+  void _removeAttachment(int index) {
+    setState(() {
+      _attachments.removeAt(index);
+    });
+    widget.onDelete(index); // Call the callback function
   }
 
-  Widget _buildAttachmentWidget(Attachment attachment) {
-    String fileName = attachment.fileName.toLowerCase();
-    if (fileName.endsWith('.jpeg') ||
-        fileName.endsWith('.jpg') ||
-        fileName.endsWith('.png')) {
-      return Image.asset(
-        attachment.fileName, // Correctly formatted asset path
-        width: MediaQuery.of(context).size.width * 0.95,
-        height: MediaQuery.of(context).size.height * 0.62,
-        fit: BoxFit.fill,
-      );
-    } else if (fileName.endsWith('.pdf')) {
-      return FutureBuilder(
-        future: _getPdfFile(attachment.fileName),
-        builder: (context, snapshot) {
-          if (snapshot.hasData) {
-            return SizedBox(
-              width: MediaQuery.of(context).size.width * 0.95,
-              height: MediaQuery.of(context).size.height * 0.52,
-              child: PDFView(
-                filePath: snapshot.data!,
-                autoSpacing: true,
-                pageFling: true,
-                pageSnap: true,
-                swipeHorizontal: true,
-              ),
-            );
-          } else if (snapshot.hasError) {
-            return Center(child: Text('Error loading PDF: ${snapshot.error}'));
-          } else {
-            return Center(child: CircularProgressIndicator());
-          }
-        },
-      );
-    } else {
-      return Center(child: Text('Unsupported file type'));
-    }
-  }
-
-  Future<String> _getPdfFile(String filePath) async {
-    try {
-      return filePath;
-    } catch (e) {
-      throw Exception('Failed to load PDF: $e');
-    }
-  }
-
-  void _showAttachmentDetails(String fileName, String filePath) {
-    showDialog(
-      context: context,
-      builder: (context) => Dialog(
-          child: Container(
-        child: Column(
-          mainAxisSize: MainAxisSize.max,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            GestureDetector(
-              onTap: () {
-                Navigator.of(context).pop();
-              },
-              child: _buildAttachmentWidget(
-                Attachment(fileName: fileName, filePath: filePath),
-              ),
-            ),
-            ElevatedButton(
-              onPressed: () => _downloadFile(filePath, fileName),
-              child: Text('Download'),
-            ),
-          ],
-        ),
-      )),
-    );
-  }
-
-  Future<void> _downloadFile(String fileUrl, String fileName) async {
-    try {
-      var dir = await getApplicationDocumentsDirectory();
-      String fullPath = "${dir.path}/$fileName";
-      Dio dio = Dio();
-      await dio.download(fileUrl, fullPath);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Downloaded $fileName')),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error downloading file: $e')),
-      );
-    }
+  Future<String> _loadAsset(String path) async {
+    return await rootBundle.loadString(path);
   }
 
   @override
   Widget build(BuildContext context) {
+    Size screenSize = MediaQuery.of(context).size;
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Color.fromARGB(255, 9, 41, 145),
+        backgroundColor: Color.fromARGB(255, 79, 128, 189),
         toolbarHeight: 77,
-        title: Text(
-          'Attachments',
-          style: TextStyle(color: Colors.white),
-        ),
-      ),
-      body: FutureBuilder<List<Attachment>>(
-        future: _attachmentsFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return Center(child: CircularProgressIndicator());
-          } else if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return Center(child: Text('No attachments found!'));
-          } else {
-            var attachments = snapshot.data!;
-            return ListView.builder(
-              itemCount: attachments.length,
-              itemBuilder: (context, index) {
-                return Card(
-                  child: GestureDetector(
-                    onTap: () => _showAttachmentDetails(
-                      attachments[index].fileName,
-                      attachments[index].filePath,
-                    ),
-                    child: ListTile(
-                      title: Text(attachments[index].fileName),
-                      subtitle: _buildAttachmentWidget(attachments[index]),
+        title: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                Image.asset(
+                  'logo.png',
+                  width: 60,
+                  height: 55,
+                ),
+                const SizedBox(width: 8),
+                const Text(
+                  'For Uploading',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontFamily: 'Tahoma',
+                    color: Color.fromARGB(255, 233, 227, 227),
+                  ),
+                ),
+              ],
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Container(
+                  margin: EdgeInsets.only(right: screenSize.width * 0.02),
+                  child: IconButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (context) => NotificationScreen()),
+                      );
+                    },
+                    icon: const Icon(
+                      Icons.notifications,
+                      size: 24,
+                      color: Color.fromARGB(255, 233, 227, 227),
                     ),
                   ),
-                );
-              },
-            );
-          }
+                ),
+                IconButton(
+                  onPressed: () {},
+                  icon: const Icon(
+                    Icons.person,
+                    size: 24,
+                    color: Color.fromARGB(255, 233, 227, 227),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+      body: ListView.builder(
+        itemCount: _attachments.length,
+        itemBuilder: (context, index) {
+          final attachment = _attachments[index];
+          return Dismissible(
+            key: Key(attachment['name']!),
+            onDismissed: (direction) {
+              _removeAttachment(index);
+              // Handle the removal of the attachment
+              // e.g., remove from the database or file system
+            },
+            background: Container(
+              color: Colors.red,
+              alignment: AlignmentDirectional.centerEnd,
+              child: Padding(
+                padding: const EdgeInsets.only(right: 20),
+                child: Icon(
+                  Icons.delete,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+            child: Container(
+              margin: EdgeInsets.symmetric(vertical: 5, horizontal: 10),
+              padding: EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(10),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.grey.withOpacity(0.5),
+                    spreadRadius: 2,
+                    blurRadius: 5,
+                    offset: Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.attach_file),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Image.asset(
+                          attachment['name']!,
+                          
+                        ),
+                        Text(attachment['status']!),
+                      ],
+                    ),
+                  ),
+                  if (attachment['status'] == 'Uploaded')
+                    GestureDetector(
+                      onTap: () async {
+                        final imagePath = attachment['path'];
+                        final imageData = await _loadAsset(imagePath!);
+                        showDialog(
+                          context: context,
+                          builder: (context) {
+                            return AlertDialog(
+                              title: Text('Image'),
+                              content: Image.memory(base64Decode(imageData)),
+                            );
+                          },
+                        );
+                      },
+                      child: const Icon(Icons.remove_red_eye),
+                    ),
+                  IconButton(
+                    icon: Icon(Icons.delete, color: Colors.red),
+                    onPressed: () {
+                      _removeAttachment(index);
+                    },
+                  ),
+                ],
+              ),
+            ),
+          );
         },
       ),
-    );
-  }
-}
-
-class Attachment {
-  final String fileName;
-  final String filePath;
-
-  Attachment({required this.fileName, required this.filePath});
-
-  factory Attachment.fromJson(Map<String, dynamic> json) {
-    return Attachment(
-      fileName: json['file_name'].toString(),
-      filePath: json['file_path'].toString(),
     );
   }
 }

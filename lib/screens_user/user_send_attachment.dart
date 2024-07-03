@@ -8,7 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../admin_screens/notifications.dart';
 import '../models/user_transaction.dart';
-import '../screens_user/user_homepage.dart';
+import 'transmitter_homepage.dart';
 import '../screens_user/user_menu.dart';
 import '../screens_user/user_upload.dart';
 import 'no_support.dart';
@@ -452,7 +452,7 @@ Widget build(BuildContext context) {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => UserHomePage(key: Key('value')),
+                                builder: (context) => TransmitterHomePage(key: Key('value')),
                               ),
                             );
                           },

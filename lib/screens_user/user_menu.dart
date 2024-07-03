@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'no_support.dart';
 import 'user_upload.dart';
-import 'user_homepage.dart';
+import 'transmitter_homepage.dart';
 import '/loginScreen.dart';
 class MenuWindow extends StatefulWidget {
   const MenuWindow({Key? key}) : super(key: key);
@@ -24,7 +24,7 @@ class _MenuState extends State<MenuWindow> {
       case 0:
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const UserHomePage()),
+          MaterialPageRoute(builder: (context) => const TransmitterHomePage()),
         );
         break;
       case 1:
