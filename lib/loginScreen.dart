@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '/screens_user/transmitter_homepage.dart';
-import '/screens_user/uploader_homepage.dart';
 import 'admin_screens/Admin_Homepage.dart';
+import 'screens_user/uploader_hompage.dart';
 
 
 class LoginScreen extends StatefulWidget {
@@ -22,7 +22,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> loginUser(BuildContext context, String username, String password) async {
     try {
-      final url = Uri.parse('http://192.168.68.116/localconnect/login.php');
+      final url = Uri.parse('http://127.0.0.1/localconnect/login.php');
       final response = await http.post(
         url,
         body: {

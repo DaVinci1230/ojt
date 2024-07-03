@@ -29,9 +29,9 @@ class _UploaderHomePageState extends State<UploaderHomePage> {
         );
         break;
       case 1:
-        Navigator.pushReplacement(
+         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const DisbursementDetailsScreen()),
+          MaterialPageRoute(builder: (context) => const HomePage()),
         );
         break;
       case 2:
@@ -122,12 +122,12 @@ class _UploaderHomePageState extends State<UploaderHomePage> {
                   label: 'items',
                   icon: Icons.content_paste,
                   onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const DisbursementDetailsScreen(),
-                      ),
-                    );
+                    // Navigator.push(
+                    //   context,
+                    //   MaterialPageRoute(
+                    //     builder: (context) => const DisbursementDetailsScreen(),
+                    //   ),
+                    // );
                   },
                 ),
                 const SizedBox(height: 20),

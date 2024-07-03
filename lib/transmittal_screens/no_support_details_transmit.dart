@@ -2,35 +2,35 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:ojt/screens_user/no_support.dart';
+import '/screens_user/no_support.dart';
+import 'package:http/http.dart' as http;
+
 
 import '../admin_screens/notifications.dart';
 import '../models/user_transaction.dart';
-import 'transmitter_homepage.dart';
-import 'user_add_attachment.dart';
-import 'package:http/http.dart' as http;
-import 'user_menu.dart';
-import 'user_upload.dart'; // Import your Transaction model
+import '../screens_user/transmitter_homepage.dart';
+import '../screens_user/user_menu.dart';
+import 'fetching_data.dart';
 
-class DisbursementDetailsScreen extends StatefulWidget {
+class NoSupportTransmitDetails extends StatefulWidget {
   final Transaction transaction;
   final List<String> selectedDetails;
 
-  DisbursementDetailsScreen({
+  NoSupportTransmitDetails({
     Key? key,
     required this.transaction,
-    required this.selectedDetails,
+    required this.selectedDetails, required List attachments,
   }) : super(key: key);
 
   @override
-  _DisbursementDetailsScreenState createState() => _DisbursementDetailsScreenState();
+  _NoSupportTransmitDetailsState createState() => _NoSupportTransmitDetailsState();
 }
 
 String createDocRef(String docType, String docNo) {
   return '$docType#$docNo';
 }
 
-class _DisbursementDetailsScreenState extends State<DisbursementDetailsScreen> {
+class _NoSupportTransmitDetailsState extends State<NoSupportTransmitDetails> {
   int _selectedIndex = 0;
   final bool _showRemarks = false;
   bool _isLoading = false;
@@ -65,7 +65,7 @@ class _DisbursementDetailsScreenState extends State<DisbursementDetailsScreen> {
       case 0:
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const HomePage()),
+          MaterialPageRoute(builder: (context) => const TransmittalHomePage()),
         );
         break;
       case 1:
@@ -82,17 +82,18 @@ class _DisbursementDetailsScreenState extends State<DisbursementDetailsScreen> {
         break;
     }
   }
+  
   Future<void> _uploadTransaction() async {
   setState(() {
     _isLoading = true; // Show loading indicator
   });
 
   try {
-    var uri = Uri.parse('http://127.0.0.1/localconnect/UserUploadUpdate/update_ops_und.php');
+    var uri = Uri.parse('http://127.0.0.1/localconnect/UserUploadUpdate/transmitter/update_ops_tnd.php');
     var request = http.Request('POST', uri);
 
     // URL-encode the values
-    var requestBody = 'doc_type=${Uri.encodeComponent(widget.transaction!.docType)}&doc_no=${Uri.encodeComponent(widget.transaction!.docNo)}&date_trans=${Uri.encodeComponent(widget.transaction!.dateTrans)}';
+    var requestBody = 'doc_type=${Uri.encodeComponent(widget.transaction.docType)}&doc_no=${Uri.encodeComponent(widget.transaction.docNo)}&date_trans=${Uri.encodeComponent(widget.transaction.dateTrans)}';
 
     request.headers['Content-Type'] = 'application/x-www-form-urlencoded';
     request.body = requestBody;
@@ -137,72 +138,47 @@ class _DisbursementDetailsScreenState extends State<DisbursementDetailsScreen> {
 
   Widget buildDetailsCard(Transaction detail) {
     return Container(
-  child: Card(
-    semanticContainer: true,
-    borderOnForeground: true,
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(15),
-    ),
-    elevation: 4,
-    child: Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          buildReadOnlyTextField('Transacting Party', detail.transactingParty),
-          SizedBox(height: 20),
-          buildTable(detail),
-          SizedBox(height: 20),
-          Center(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => UserAddAttachment(
-                          transaction: detail,
-                          selectedDetails: [],
-                        ),
-                      ),
-                    );
-                  },
-                  child: Text('Add Attachment'),
-                  style: TextButton.styleFrom(
-                    foregroundColor: Colors.white,
-                    backgroundColor: Color.fromARGB(255, 79, 128, 189),
-                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Card(
+        semanticContainer: true,
+        borderOnForeground: true,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(15),
+        ),
+        elevation: 4,
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              buildReadOnlyTextField('Transacting Party', detail.transactingParty),
+              SizedBox(height: 20),
+              buildTable(detail),
+              SizedBox(height: 20),
+              Center(
+                child: ElevatedButton.icon(
+                    onPressed: _isLoading
+                        ? null
+                        : () {
+                            _uploadTransaction();
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => TransmitterHomePage(key: Key('value')),
+                              ),
+                            );
+                          },
+                    icon: Icon(Icons.send),
+                    label: Text('Send'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Color.fromARGB(255, 79, 129, 189),
+                    ),
                   ),
-                ),
-                SizedBox(width: 10), // Add some spacing between the buttons
-                ElevatedButton.icon(
-                  onPressed: _isLoading
-                      ? null
-                      : () {
-                          _uploadTransaction();
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => TransmitterHomePage(key: Key('value')),
-                            ),
-                          );
-                        },
-                  icon: Icon(Icons.send),
-                  label: Text('Send'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Color.fromARGB(255, 79, 129, 189),
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
-    ),
-  ),
-);
+    );
   }
 
   Widget buildReadOnlyTextField(String label, String value) {
@@ -222,26 +198,26 @@ class _DisbursementDetailsScreenState extends State<DisbursementDetailsScreen> {
 
   Widget buildTable(Transaction detail) {
     return Table(
-      columnWidths: {
-        0: FlexColumnWidth(1),
-        1: FlexColumnWidth(2),
-      },
-      border: TableBorder.all(
-        width: 1.0,
-        color: Colors.black,
-      ),
-      children: [
-        buildTableRow('Doc Ref', createDocRef(detail.docType, detail.docNo)),
-        buildTableRow('Date', formatDate(detail.transDate)),
-        buildTableRow('Payee', detail.transactingParty),
-        buildTableRow('Check', detail.checkNumber),
-        buildTableRow('Bank', detail.bankName),
-        buildTableRow('Amount', formatAmount(detail.checkAmount)),
-        buildTableRow('Status', detail.transactionStatusWord), 
-        buildTableRow('Remarks', detail.remarks),
-      ],
-    );
-  }
+  columnWidths: {
+    0: FlexColumnWidth(1),
+    1: FlexColumnWidth(2),
+  },
+  border: TableBorder.all(
+    width: 1.0,
+    color: Colors.black,
+  ),
+  children: [
+    buildTableRow('Doc Ref', createDocRef(detail.docType, detail.docNo)),
+    buildTableRow('Date', formatDate(detail.transDate)),
+    buildTableRow('Payee', detail.transactingParty),
+    buildTableRow('Check', detail.checkNumber),
+    buildTableRow('Bank', detail.bankName),
+    buildTableRow('Amount', formatAmount(detail.checkAmount)),
+    buildTableRow('Status', detail.transactionStatusWord), // Use the getter here
+    buildTableRow('Remarks', detail.remarks),
+  ],
+);
+}
 
   TableRow buildTableRow(String label, String value) {
     return TableRow(
@@ -288,7 +264,7 @@ class _DisbursementDetailsScreenState extends State<DisbursementDetailsScreen> {
                 ),
                 const SizedBox(width: 8),
                 const Text(
-                  'For Uploading',
+                  'For Transmittal',
                   style: TextStyle(
                     fontSize: 16,
                     fontFamily: 'Tahoma',

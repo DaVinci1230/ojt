@@ -102,7 +102,7 @@ class _UserSendAttachmentState extends State<UserSendAttachment> {
 
       try {
         var uri = Uri.parse(
-            'http://192.168.68.116/localconnect/UserUploadUpdate/update_TS.php');
+            'http://127.0.0.1/localconnect/UserUploadUpdate/update_u.php');
 
         for (var attachment in attachments.toList()) {
           if (attachment['name'] != null &&

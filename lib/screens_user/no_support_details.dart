@@ -88,7 +88,7 @@ class _NoSupportDetailsState extends State<NoSupportDetails> {
   });
 
   try {
-    var uri = Uri.parse('http://192.168.68.113/localconnect/UserUploadUpdate/update_OPS.php');
+    var uri = Uri.parse('http://127.0.0.1/localconnect/UserUploadUpdate/update_ops_und.php');
     var request = http.Request('POST', uri);
 
     // URL-encode the values

@@ -8,15 +8,17 @@ import 'package:scrollable_table_view/scrollable_table_view.dart';
 
 import '../models/user_transaction.dart';
 import '../screens_user/user_menu.dart';
+import 'fetching_data.dart';
+import 'no_support_details_transmit.dart';
 
-class TransmittalHomePage extends StatefulWidget {
-  const TransmittalHomePage({Key? key}) : super(key: key);
+class NoSupportTransmit extends StatefulWidget {
+  const NoSupportTransmit({Key? key}) : super(key: key);
 
   @override
-  _TransmittalHomePageState createState() => _TransmittalHomePageState();
+  _NoSupportTransmitState createState() => _NoSupportTransmitState();
 }
 
-class _TransmittalHomePageState extends State<TransmittalHomePage> {
+class _NoSupportTransmitState extends State<NoSupportTransmit> {
   late List<Transaction> transactions;
   late bool isLoading;
   String selectedColumn = 'docRef';
@@ -43,16 +45,16 @@ class _TransmittalHomePageState extends State<TransmittalHomePage> {
 
     switch (index) {
       case 0:
-        Navigator.pushReplacement(
+       Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => const TransmittalHomePage()),
         );
         break;
       case 1:
-        // Navigator.pushReplacement(
-        //   context,
-        //   MaterialPageRoute(builder: (context) => DisbursementDetailsScreen()),
-        // );
+         Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const NoSupportTransmit()),
+        );
         break;
       case 2:
         Navigator.pushReplacement(
@@ -66,14 +68,14 @@ class _TransmittalHomePageState extends State<TransmittalHomePage> {
   Future<void> fetchTransactions() async {
     try {
       final response = await http.get(Uri.parse(
-          'http://192.168.68.116/localconnect/fetch_transaction_data.php'));
+          'http://127.0.0.1/localconnect/fetch_transaction_data.php'));
 
       if (response.statusCode == 200) {
         setState(() {
           final List<dynamic> data = json.decode(response.body);
           transactions = data
               .map((json) => Transaction.fromJson(json))
-              .where((transaction) => transaction.onlineProcessingStatus == 'U')
+              .where((transaction) => transaction.onlineProcessingStatus == 'UND')
               .toList();
           isLoading = false;
         });
@@ -156,7 +158,7 @@ class _TransmittalHomePageState extends State<TransmittalHomePage> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => ReviewData(
+        builder: (context) => NoSupportTransmitDetails(
           transaction: transaction,
           selectedDetails: [], attachments: [], // Adjust based on your requirements
         ),

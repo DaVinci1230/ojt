@@ -91,7 +91,7 @@ class _UserAddAttachmentState extends State<UserAddAttachment> {
       var request = http.MultipartRequest(
         'POST',
         Uri.parse(
-            'http://192.168.68.116/localconnect/UserUploadUpdate/upload_asset.php'),
+            'http://127.0.0.1/localconnect/UserUploadUpdate/upload_asset.php'),
       );
       // Add the 'doc_type', 'doc_no', and 'date_trans' fields to the request
       request.fields['doc_type'] = widget.transaction.docType.toString();

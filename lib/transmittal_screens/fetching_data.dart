@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:intl/intl.dart';
+import 'package:ojt/transmittal_screens/no_support_transmit.dart';
 import 'package:ojt/transmittal_screens/review_data.dart';
 import 'package:scrollable_table_view/scrollable_table_view.dart';
 
@@ -49,10 +50,10 @@ class _TransmittalHomePageState extends State<TransmittalHomePage> {
         );
         break;
       case 1:
-        // Navigator.pushReplacement(
-        //   context,
-        //   MaterialPageRoute(builder: (context) => DisbursementDetailsScreen()),
-        // );
+      Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const NoSupportTransmit()),
+        );
         break;
       case 2:
         Navigator.pushReplacement(
@@ -66,7 +67,7 @@ class _TransmittalHomePageState extends State<TransmittalHomePage> {
   Future<void> fetchTransactions() async {
     try {
       final response = await http.get(Uri.parse(
-          'http://192.168.68.116/localconnect/fetch_transaction_data.php'));
+          'http://127.0.0.1/localconnect/fetch_transaction_data.php'));
 
       if (response.statusCode == 200) {
         setState(() {

@@ -68,7 +68,7 @@ class _NoSupportScreenState extends State<NoSupportScreen> {
   Future<void> fetchTransactions() async {
     try {
       final response = await http.get(Uri.parse(
-          'http://192.168.68.113/localconnect/fetch_transaction_data.php'));
+          'http://127.0.0.1/localconnect/fetch_transaction_transmitter.php'));
 
       if (response.statusCode == 200) {
         setState(() {
