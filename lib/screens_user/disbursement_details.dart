@@ -3,10 +3,11 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:ojt/screens_user/no_support.dart';
+import 'package:ojt/screens_user/uploader_hompage.dart';
 
 import '../admin_screens/notifications.dart';
 import '../models/user_transaction.dart';
-import 'transmitter_homepage.dart';
+
 import 'user_add_attachment.dart';
 import 'package:http/http.dart' as http;
 import 'user_menu.dart';
@@ -185,7 +186,7 @@ class _DisbursementDetailsScreenState extends State<DisbursementDetailsScreen> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => TransmitterHomePage(key: Key('value')),
+                              builder: (context) => HomePage(key: Key('value')),
                             ),
                           );
                         },

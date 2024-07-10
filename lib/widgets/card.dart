@@ -42,6 +42,48 @@ class _CustomCardExampleState extends State<CustomCardExample>
     _fetchCheckDetails(widget.transaction.docNo, widget.transaction.docType);
   }
 
+  Future<void> _approvedTransaction(String docNo, String docType) async {
+    try {
+      final response = await http.post(
+        Uri.parse('http://127.0.0.1/localconnect/approve.php'),
+        body: {
+          'doc_no': docNo,
+          'doc_type': docType,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        var responseData = json.decode(response.body);
+        if (responseData['status'] == 'success') {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Transaction approved successfully')),
+          );
+          setState(() {
+            _showDetails = false;
+            _checkDetails.clear();
+          });
+        } else {
+          throw Exception('Failed to approve transaction');
+        }
+      } else {
+        throw Exception('Failed to approve transaction');
+      }
+    } catch (e) {
+      print('Error approving transaction: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error approving transaction: $e')),
+      );
+    }
+  }
+
+  void resetTransaction(Transaction newTransaction) {
+    setState(() {
+      _showDetails = false;
+      _checkDetails.clear();
+    });
+    _fetchCheckDetails(newTransaction.docNo, newTransaction.docType);
+  }
+
   Future<void> _fetchCheckDetails(String docNo, String docType) async {
     try {
       final response = await http.get(Uri.parse(
@@ -83,6 +125,7 @@ class _CustomCardExampleState extends State<CustomCardExample>
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Transaction rejected successfully')),
           );
+          resetTransaction(widget.transaction);
         } else {
           throw Exception('Failed to reject transaction');
         }
@@ -172,18 +215,23 @@ class _CustomCardExampleState extends State<CustomCardExample>
         var responseData = json.decode(response.body);
         if (responseData['status'] == 'success') {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Transaction declined successfully')),
+            SnackBar(content: Text('Transaction rejected successfully')),
           );
+          // Reset the card state
+          setState(() {
+            _showDetails = false;
+            _checkDetails.clear();
+          });
         } else {
-          throw Exception('Failed to decline transaction');
+          throw Exception('Failed to reject transaction');
         }
       } else {
-        throw Exception('Failed to decline transaction');
+        throw Exception('Failed to reject transaction');
       }
     } catch (e) {
-      print('Error declining transaction: $e');
+      print('Error rejecting transaction: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error declining transaction: $e')),
+        SnackBar(content: Text('Error rejecting transaction: $e')),
       );
     }
   }
@@ -301,26 +349,27 @@ class _CustomCardExampleState extends State<CustomCardExample>
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              ElevatedButton.icon(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => ViewAttachments(
-                        docType: widget.transaction.docType,
-                        docNo: widget.transaction.docNo,
+              if (widget.transaction.onlineTransactionStatus == 'T')
+                ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => ViewAttachments(
+                          docType: widget.transaction.docType,
+                          docNo: widget.transaction.docNo,
+                        ),
                       ),
-                    ),
-                  );
-                },
-                icon: Icon(Icons.attachment_rounded),
-                label: Text('View Attachment'),
-                style: ElevatedButton.styleFrom(
-                  padding: EdgeInsets.all(12),
-                  backgroundColor: const Color.fromARGB(255, 187, 196, 204),
-                  textStyle: TextStyle(fontSize: 16),
+                    );
+                  },
+                  icon: Icon(Icons.attachment_rounded),
+                  label: Text('View Attachment'),
+                  style: ElevatedButton.styleFrom(
+                    padding: EdgeInsets.all(12),
+                    backgroundColor: const Color.fromARGB(255, 187, 196, 204),
+                    textStyle: TextStyle(fontSize: 16),
+                  ),
                 ),
-              ),
             ],
           ),
         ),
@@ -331,7 +380,10 @@ class _CustomCardExampleState extends State<CustomCardExample>
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             ElevatedButton.icon(
-              onPressed: () {},
+              onPressed: () {
+                _approvedTransaction(
+                    widget.transaction.docNo, widget.transaction.docType);
+              },
               icon: Icon(Icons.check),
               label: Text('Approve'),
               style: ElevatedButton.styleFrom(
@@ -411,7 +463,7 @@ class _CustomCardExampleState extends State<CustomCardExample>
     return AnimatedContainer(
       duration: Duration(milliseconds: 500),
       curve: Curves.easeInOut,
-      height: _showDetails ? null : screenHeight * 0.305,
+      height: _showDetails ? null : screenHeight * 0.312,
       child: Card(
         shadowColor: Colors.white,
         shape: RoundedRectangleBorder(

@@ -40,7 +40,6 @@ class _DisbursementChequeState extends State<DisbursementCheque>
   late Future<List<Transaction>> _transactionsFutureT;
   late Future<List<Transaction>> _transactionsFutureTnd;
   double _totalSelectedAmount = 0.0;
-  double _totalAmountTnd = 0.0;
 
   @override
   void initState() {
@@ -48,7 +47,6 @@ class _DisbursementChequeState extends State<DisbursementCheque>
     _tabController = TabController(length: 2, vsync: this);
     _transactionsFutureT = _fetchTransactionDetails('T');
     _transactionsFutureTnd = _fetchTransactionDetails('TND');
-    _totalAmountTnd = 0.0;
   }
 
   String getCurrentDate() {
@@ -69,6 +67,11 @@ class _DisbursementChequeState extends State<DisbursementCheque>
           List<Transaction> fetchedTransactions = jsonData
               .map((transaction) => Transaction.fromJson(transaction))
               .toList();
+
+          // Sort transactions by onlineProcessDate descending
+          fetchedTransactions.sort(
+              (a, b) => b.onlineProcessDate.compareTo(a.onlineProcessDate));
+
           setState(() {
             if (onlineTransactionStatus == 'T') {
               pendingCountT = fetchedTransactions
@@ -82,6 +85,7 @@ class _DisbursementChequeState extends State<DisbursementCheque>
                   .length;
             }
           });
+
           return fetchedTransactions;
         } else {
           throw Exception('Unexpected response format');
@@ -149,7 +153,6 @@ class _DisbursementChequeState extends State<DisbursementCheque>
   void _toggleSelectTransaction(Transaction transaction, bool isSelected) {
     setState(() {
       transaction.isSelected = isSelected;
-      double amount = double.parse(transaction.checkAmount);
 
       // Update total selected amount
       _calculateSelectedAmount(transaction.onlineTransactionStatus == 'T'
@@ -281,7 +284,14 @@ class _DisbursementChequeState extends State<DisbursementCheque>
         SnackBar(content: Text('Error rejecting transactions: $e')),
       );
     }
+    setState(() {
+      _transactionsFutureT = _fetchTransactionDetails('T');
+      _transactionsFutureTnd = _fetchTransactionDetails('TND');
+      _selectAllTabT = false;
+      _selectAllTabTnd = false;
+    });
   }
+
   void _approvedTransaction(List<Transaction> transactions) async {
     try {
       for (Transaction transaction in transactions) {
@@ -316,10 +326,15 @@ class _DisbursementChequeState extends State<DisbursementCheque>
         SnackBar(content: Text('Error approve transactions: $e')),
       );
     }
+    setState(() {
+      _transactionsFutureT = _fetchTransactionDetails('T');
+      _transactionsFutureTnd = _fetchTransactionDetails('TND');
+      _selectAllTabT = false;
+      _selectAllTabTnd = false;
+    });
   }
 
   void _approvedAllTransaction() {
-    // Get the current list of transactions
     _transactionsFutureT.then((transactions) {
       List<Transaction> selectedTransactions =
           transactions.where((transaction) => transaction.isSelected).toList();
@@ -331,8 +346,6 @@ class _DisbursementChequeState extends State<DisbursementCheque>
           SnackBar(content: Text('No transactions selected to approve')),
         );
       }
-
-      // Clear selection after rejection
       setState(() {
         _selectAllTabT = false;
       });
@@ -342,7 +355,6 @@ class _DisbursementChequeState extends State<DisbursementCheque>
   }
 
   void _rejectAllTransactions() {
-    // Get the current list of transactions
     _transactionsFutureT.then((transactions) {
       List<Transaction> selectedTransactions =
           transactions.where((transaction) => transaction.isSelected).toList();
@@ -354,8 +366,6 @@ class _DisbursementChequeState extends State<DisbursementCheque>
           SnackBar(content: Text('No transactions selected to reject')),
         );
       }
-
-      // Clear selection after rejection
       setState(() {
         _selectAllTabT = false;
       });
@@ -526,23 +536,17 @@ class _DisbursementChequeState extends State<DisbursementCheque>
           duration: Duration(milliseconds: 500),
           width: screenSize.width * 0.6,
           margin: EdgeInsets.only(
-            bottom: screenSize.height *
-                0.02, // Margin from bottom adjusted based on screen height
-            right: screenSize.width *
-                0.005, // Margin from right adjusted based on screen width
+            bottom: screenSize.height * 0.02,
+            right: screenSize.width * 0.005,
           ),
-          padding: EdgeInsets.all(screenSize.width *
-              0.02), // Padding adjusted based on screen width
+          padding: EdgeInsets.all(screenSize.width * 0.02),
           decoration: BoxDecoration(
-            color: Color.fromARGB(255, 0, 0, 0), // Transparent background
+            color: Color.fromARGB(255, 0, 0, 0),
             border: Border.all(color: Colors.blue, width: 2),
             borderRadius: BorderRadius.only(
-              topLeft: Radius.circular(screenSize.width *
-                  0.05), // Border radius adjusted based on screen width
-              topRight: Radius.circular(screenSize.width *
-                  0.00), // Border radius adjusted based on screen width
-              bottomLeft: Radius.circular(screenSize.width *
-                  0.05), // Border radius adjusted based on screen width
+              topLeft: Radius.circular(screenSize.width * 0.05),
+              topRight: Radius.circular(screenSize.width * 0.00),
+              bottomLeft: Radius.circular(screenSize.width * 0.05),
               bottomRight: Radius.circular(0),
             ),
           ),
@@ -553,65 +557,75 @@ class _DisbursementChequeState extends State<DisbursementCheque>
               ElevatedButton.icon(
                 onPressed: () {
                   _approvedAllTransaction();
+                  setState(() {
+                    _totalSelectedAmount = 0.0;
+                  });
                 },
-                icon: Icon(Icons.check,
-                    size: screenSize.width * 0.05,
-                    color: Colors
-                        .white), // Icon size adjusted based on screen width
+                icon: Icon(
+                  Icons.check,
+                  size: screenSize.width * 0.05,
+                  color: Colors.white,
+                ),
                 label: Text(
                   'Approve',
                   style: TextStyle(
-                      fontSize: screenSize.width * 0.03,
-                      color: Colors
-                          .white), // Text size adjusted based on screen width
+                    fontSize: screenSize.width * 0.03,
+                    color: Colors.white,
+                  ),
                 ),
                 style: ElevatedButton.styleFrom(
                   padding: EdgeInsets.symmetric(
-                      horizontal: screenSize.width * 0.02,
-                      vertical: screenSize.width *
-                          0.015), // Padding adjusted based on screen width
-                  backgroundColor: Colors.blue, // Blue background color
-                  elevation: 0, // Remove shadow
-                  shadowColor: Colors.transparent, // Remove shadow color
+                    horizontal: screenSize.width * 0.02,
+                    vertical: screenSize.width * 0.015,
+                  ),
+                  backgroundColor: Colors.blue,
+                  elevation: 0,
+                  shadowColor: Colors.transparent,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(screenSize.width *
-                        0.04), // Button border radius adjusted based on screen width
+                    borderRadius:
+                        BorderRadius.circular(screenSize.width * 0.04),
                     side: BorderSide(
-                        color: Colors.blue,
-                        width: screenSize.width *
-                            0.01), // Button border width adjusted based on screen width
+                      color: Colors.blue,
+                      width: screenSize.width * 0.01,
+                    ),
                   ),
                 ),
               ),
               SizedBox(width: screenSize.width * 0.01),
               ElevatedButton.icon(
-                onPressed: _rejectAllTransactions,
-                icon: Icon(Icons.cancel_rounded,
-                    size: screenSize.width * 0.03,
-                    color: Colors
-                        .white), // Icon size adjusted based on screen width
+                onPressed: () {
+                  _rejectAllTransactions();
+                  setState(() {
+                    _totalSelectedAmount = 0.0;
+                  });
+                },
+                icon: Icon(
+                  Icons.cancel_rounded,
+                  size: screenSize.width * 0.03,
+                  color: Colors.white,
+                ),
                 label: Text(
                   'Reject',
                   style: TextStyle(
-                      fontSize: screenSize.width * 0.03,
-                      color: Colors
-                          .white), // Text size adjusted based on screen width
+                    fontSize: screenSize.width * 0.03,
+                    color: Colors.white,
+                  ),
                 ),
                 style: ElevatedButton.styleFrom(
                   padding: EdgeInsets.symmetric(
-                      horizontal: screenSize.width * 0.02,
-                      vertical: screenSize.width *
-                          0.015), // Padding adjusted based on screen width
-                  backgroundColor: Colors.blue, // Blue background color
-                  elevation: 0, // Remove shadow
-                  shadowColor: Colors.transparent, // Remove shadow color
+                    horizontal: screenSize.width * 0.02,
+                    vertical: screenSize.width * 0.015,
+                  ),
+                  backgroundColor: Colors.blue,
+                  elevation: 0,
+                  shadowColor: Colors.transparent,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(screenSize.width *
-                        0.04), // Button border radius adjusted based on screen width
+                    borderRadius:
+                        BorderRadius.circular(screenSize.width * 0.04),
                     side: BorderSide(
-                        color: Colors.blue,
-                        width: screenSize.width *
-                            0.01), // Button border width adjusted based on screen width
+                      color: Colors.blue,
+                      width: screenSize.width * 0.01,
+                    ),
                   ),
                 ),
               ),
@@ -686,7 +700,7 @@ class _DisbursementChequeState extends State<DisbursementCheque>
                         ),
                       ),
                       buildSelectAllButton(),
-                      SizedBox(width: 8), // Adjust the width as needed
+                      SizedBox(width: 8), 
                       Text(
                         'Select All',
                         style: TextStyle(

@@ -4,8 +4,8 @@ class Transaction {
   final String checkNo;
   final String docType;
   final String docNo;
-  final String fileName;
-  final String filePath;
+  final String? fileName; // Nullable
+  final String? filePath; // Nullable
   final String uploadedBy;
   final String dateUploaded;
   final String checkAmount;
@@ -15,6 +15,8 @@ class Transaction {
   bool isSelected;
   String onlineTransactionStatus;
   final String approverRemarks;
+  final String transactionStatus;
+  final String onlineProcessDate;
 
   Transaction({
     required this.transactingParty,
@@ -22,8 +24,6 @@ class Transaction {
     required this.checkNo,
     required this.docType,
     required this.docNo,
-    required this.fileName,
-    required this.filePath,
     required this.uploadedBy,
     required this.dateUploaded,
     required this.checkAmount,
@@ -31,8 +31,12 @@ class Transaction {
     required this.checkDate,
     required this.remarks,
     required this.onlineTransactionStatus,
+    this.fileName,
+    this.filePath,
     this.isSelected = false,
     required this.approverRemarks,
+    required this.transactionStatus,
+    required this.onlineProcessDate,
   });
 
   factory Transaction.fromJson(Map<String, dynamic> json) {
@@ -41,17 +45,35 @@ class Transaction {
       transDate: json['date_trans'] ?? '',
       checkNo: json['check_no'] ?? '',
       docType: json['doc_type'] ?? '',
-      fileName: json['file_name'] ?? '',
-      filePath: json['file_path'] ?? '',
+      fileName: json['file_name'],
+      filePath: json['file_path'],
       uploadedBy: json['uploaded_by'] ?? '',
       dateUploaded: json['date_uploaded'] ?? '',
       checkAmount: json['check_amount'].toString(),
       docNo: json['doc_no'] ?? '',
       checkBankDrawee: json['check_drawee_bank'] ?? '',
-      checkDate: json['check_date'],
+      checkDate: json['check_date'] ?? '',
       remarks: json['remarks'] ?? '',
       onlineTransactionStatus: json['online_processing_status'] ?? '',
       approverRemarks: json['approver_remarks'] ?? '',
+      transactionStatus: json['transaction_status'] ?? '',
+      onlineProcessDate: json['online_process_date'] ?? '',
     );
   }
+
+  String get convertTransactionStatus {
+    switch (transactionStatus) {
+      case 'A':
+        return 'Approved';
+      case 'R':
+        return 'Returned';
+      case 'N':
+        return 'Rejected';
+      default:
+        return 'Unknown';
+    }
+  }
+
+  bool get hasFileName => fileName != null && fileName!.isNotEmpty;
+  bool get hasFilePath => filePath != null && filePath!.isNotEmpty;
 }

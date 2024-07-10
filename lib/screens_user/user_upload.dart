@@ -1,15 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:intl/intl.dart';
 import 'package:ojt/screens_user/no_support.dart';
 import 'package:scrollable_table_view/scrollable_table_view.dart';
-import 'no_support.dart';
 import '../models/user_transaction.dart'; // Import your Transaction model
 import 'disbursement_details.dart';
 import 'user_menu.dart'; // Import the DisbursementDetailsScreen
-
 
 class HomePage extends StatefulWidget {
   const HomePage({Key? key}) : super(key: key);
@@ -36,8 +33,7 @@ class _HomePageState extends State<HomePage> {
     fetchTransactions();
   }
 
-
-void _onItemTapped(int index) {
+  void _onItemTapped(int index) {
     if (_selectedIndex == index) return;
 
     setState(() {
@@ -74,8 +70,10 @@ void _onItemTapped(int index) {
       if (response.statusCode == 200) {
         setState(() {
           final List<dynamic> data = json.decode(response.body);
-          transactions =
-              data.map((json) => Transaction.fromJson(json)).toList();
+          transactions = data
+              .map((json) => Transaction.fromJson(json))
+              .where((transaction) => transaction.transactionStatus == 'S')
+              .toList();
           isLoading = false;
         });
       } else {
@@ -177,7 +175,6 @@ void _onItemTapped(int index) {
 
     return Scaffold(
       appBar: AppBar(
-        
         backgroundColor: Color.fromARGB(255, 79, 128, 189),
         toolbarHeight: 77,
         title: Row(

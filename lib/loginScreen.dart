@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import '/screens_user/transmitter_homepage.dart';
+import '/transmittal_screens/transmitter_homepage.dart';
 import 'admin_screens/Admin_Homepage.dart';
 import 'screens_user/uploader_hompage.dart';
-
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
@@ -44,14 +43,13 @@ class _LoginScreenState extends State<LoginScreen> {
               context,
               MaterialPageRoute(builder: (context) => const AdminHomePage()),
             );
-          }
-          else if (userRank.toLowerCase() == 'user' && approval_access.toLowerCase() == 'uploader'){
+          } else if (userRank.toLowerCase() == 'user' && approval_access.toLowerCase() == 'uploader') {
             Navigator.push(
               context,
               MaterialPageRoute(builder: (context) => const UploaderHomePage()),
             );
-          }
-          else if (userRank.toLowerCase() == 'user' && approval_access.toLowerCase() == 'uploader-transmitter'){            Navigator.push(
+          } else if (userRank.toLowerCase() == 'user' && approval_access.toLowerCase() == 'uploader-transmitter') {
+            Navigator.push(
               context,
               MaterialPageRoute(builder: (context) => TransmitterHomePage()),
             );
@@ -114,13 +112,15 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    double screenHeight = MediaQuery.of(context).size.height;
+    double screenWidth = MediaQuery.of(context).size.width;
+
     return Scaffold(
       body: Stack(
         children: [
           Container(
-            
-            height: double.infinity,
-            width: double.infinity,
+            height: screenHeight,
+            width: screenWidth,
             decoration: const BoxDecoration(
               gradient: LinearGradient(
                 colors: [
@@ -129,12 +129,12 @@ class _LoginScreenState extends State<LoginScreen> {
                 ],
               ),
             ),
-            child: const Padding(
-              padding: EdgeInsets.only(top: 60.0, left: 22),
+            child: Padding(
+              padding: EdgeInsets.only(top: screenHeight * 0.08, left: screenWidth * 0.06),
               child: Text(
                 'Hello,\nWelcome back!',
                 style: TextStyle(
-                  fontSize: 30,
+                  fontSize: screenWidth * 0.08,
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
                   fontFamily: 'Tahoma Bold',
@@ -142,16 +142,17 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             ),
           ),
-          Container(
-            margin: EdgeInsets.only(left: 270, top: 25),
+          Positioned(
+            top: screenHeight * 0.03,
+            right: screenWidth * 0.035,
             child: Image.asset(
               'logo.png',
-              width: 150,
-              height: 155,
+              width: screenWidth * 0.32,
+              height: screenHeight * 0.2,
             ),
           ),
           Padding(
-            padding: const EdgeInsets.only(top: 200.0),
+            padding: EdgeInsets.only(top: screenHeight * 0.25),
             child: Container(
               decoration: const BoxDecoration(
                 borderRadius: BorderRadius.only(
@@ -160,15 +161,15 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 color: Colors.white,
               ),
-              height: double.infinity,
-              width: double.infinity,
+              height: screenHeight * 0.75,
+              width: screenWidth,
               child: Padding(
-                padding: const EdgeInsets.only(left: 18.0, right: 18),
+                padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.05),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Container(
-                      width: 335,
+                      width: screenWidth * 0.9,
                       child: TextField(
                         onChanged: (value) {
                           username = value;
@@ -189,7 +190,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                     Container(
-                      width: 335,
+                      width: screenWidth * 0.9,
                       child: TextField(
                         controller: passwordController,
                         onChanged: (value) {
@@ -243,8 +244,8 @@ class _LoginScreenState extends State<LoginScreen> {
                         loginUser(context, username, password);
                       },
                       child: Container(
-                        height: 35,
-                        width: 100,
+                        height: screenHeight * 0.05,
+                        width: screenWidth * 0.3,
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(15),
                           gradient: const LinearGradient(

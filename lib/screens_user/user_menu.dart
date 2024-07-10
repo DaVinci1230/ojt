@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'no_support.dart';
-import 'user_upload.dart';
-import 'transmitter_homepage.dart';
+import 'package:ojt/screens_user/uploader_hompage.dart';
+import '../widgets/navBar.dart';
 import '/loginScreen.dart';
+
 class MenuWindow extends StatefulWidget {
   const MenuWindow({Key? key}) : super(key: key);
 
@@ -11,7 +11,7 @@ class MenuWindow extends StatefulWidget {
 }
 
 class _MenuState extends State<MenuWindow> {
-  int _selectedIndex = 2;
+  int _selectedIndex = 1;
 
   void _onItemTapped(int index) {
     if (_selectedIndex == index) return;
@@ -24,23 +24,15 @@ class _MenuState extends State<MenuWindow> {
       case 0:
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const TransmitterHomePage()),
+          MaterialPageRoute(builder: (context) => const UploaderHomePage()),
         );
         break;
       case 1:
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const NoSupportScreen()),
-        );
-        break;
-      case 2:
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const MenuWindow()),
-        );
+        // No action needed, already on the menu page
         break;
     }
   }
+
   @override
   Widget build(BuildContext context) {
     Size screenSize = MediaQuery.of(context).size;
@@ -58,7 +50,7 @@ class _MenuState extends State<MenuWindow> {
               children: [
                 Image.asset(
                   'logo.png',
-                  width: screenSize.width * 0.15, 
+                  width: screenSize.width * 0.15,
                   height: screenSize.height * 0.1,
                 ),
                 const SizedBox(width: 8),
@@ -168,14 +160,15 @@ class _MenuState extends State<MenuWindow> {
               ),
               InkWell(
                 onTap: () {
-                  // Navigator.push(
-                  //   context,
-                  //   MaterialPageRoute(
-                  //     builder: (context) => TransactionsScreen(),
-                  //   ),
-                  // );
+// Navigator.push(
+//   context,
+//   MaterialPageRoute(
+//     builder: (context) => TransactionsScreen(),
+//   ),
+// );
                 },
-                child: _buildOption(screenSize, Icons.fact_check_outlined, 'History'),
+                child: _buildOption(
+                    screenSize, Icons.fact_check_outlined, 'History'),
               ),
               _buildOption(screenSize, Icons.fingerprint_rounded, 'Biometrics'),
               _buildOption(screenSize, Icons.security, 'Change Password'),
@@ -188,7 +181,8 @@ class _MenuState extends State<MenuWindow> {
                     ),
                   );
                 },
-                child: _buildOption(screenSize, Icons.login_outlined, 'Log out'),
+                child:
+                    _buildOption(screenSize, Icons.login_outlined, 'Log out'),
               ),
               SizedBox(
                 height: screenSize.height * 0.15,
@@ -197,23 +191,8 @@ class _MenuState extends State<MenuWindow> {
           ),
         ),
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        items: const <BottomNavigationBarItem>[
-          BottomNavigationBarItem(
-            icon: Icon(Icons.upload_file_outlined),
-            label: 'Upload',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.task_sharp),
-            label: 'No Support',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.menu_sharp),
-            label: 'Menu',
-          ),
-        ],
+      bottomNavigationBar: BottomNavBar(
         currentIndex: _selectedIndex,
-        selectedItemColor: const Color.fromARGB(255, 0, 110, 255),
         onTap: _onItemTapped,
       ),
     );

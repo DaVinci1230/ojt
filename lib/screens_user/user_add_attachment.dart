@@ -1,16 +1,12 @@
 import 'dart:convert';
 import 'dart:developer' as developer;
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
-import 'package:mime/mime.dart';
-import 'package:http_parser/http_parser.dart';
 
 import '../models/user_transaction.dart';
-import 'transmitter_homepage.dart';
 import 'user_menu.dart';
 import 'user_send_attachment.dart';
 import 'user_upload.dart';
@@ -26,6 +22,13 @@ class UserAddAttachment extends StatefulWidget {
 
   @override
   _UserAddAttachmentState createState() => _UserAddAttachmentState();
+}
+
+String sanitizeFileName(String fileName) {
+  // Define a regular expression that matches non-alphanumeric characters
+  final RegExp regExp = RegExp(r'[^a-zA-Z0-9.]');
+  // Replace matched characters with an empty string
+  return fileName.replaceAll(regExp, '');
 }
 
 class _UserAddAttachmentState extends State<UserAddAttachment> {
@@ -66,15 +69,15 @@ class _UserAddAttachmentState extends State<UserAddAttachment> {
     if (result != null && result.files.isNotEmpty) {
       setState(() {
         for (var file in result.files) {
-          _fileName = file.name ?? 'Unknown';
+          String fileName = file.name ?? 'Unknown';
+          String sanitizedFileName = sanitizeFileName(fileName);
           attachments.add({
-            'name': _fileName!,
+            'name': sanitizedFileName,
             'status': 'Selected',
             'bytes': file.bytes,
             'size': file.size,
           });
         }
-        //  developer.log('Attachments array after adding: $attachments');
       });
       developer.log('Files picked: ${result.files.length}');
     } else {
@@ -93,16 +96,21 @@ class _UserAddAttachmentState extends State<UserAddAttachment> {
         Uri.parse(
             'http://127.0.0.1/localconnect/UserUploadUpdate/upload_asset.php'),
       );
+
       // Add the 'doc_type', 'doc_no', and 'date_trans' fields to the request
       request.fields['doc_type'] = widget.transaction.docType.toString();
       request.fields['doc_no'] = widget.transaction.docNo.toString();
       request.fields['date_trans'] = widget.transaction.dateTrans.toString();
-      
+
+      // Sanitize the filename
+      String sanitizedFileName = sanitizeFileName(pickedFile.name);
+
+      // Add the file to the request
       request.files.add(
         http.MultipartFile.fromBytes(
           'file',
           pickedFile.bytes!,
-          filename: pickedFile.name,
+          filename: sanitizedFileName,
         ),
       );
 
@@ -117,17 +125,14 @@ class _UserAddAttachmentState extends State<UserAddAttachment> {
           var result = jsonDecode(responseBody);
           if (result['status'] == 'success') {
             setState(() {
+              attachments.removeWhere(
+                  (element) => element['name'] == sanitizedFileName);
               attachments
-                  .removeWhere((element) => element['name'] == _fileName);
-              attachments.add({'name': _fileName!, 'status': 'Uploaded'});
+                  .add({'name': sanitizedFileName, 'status': 'Uploaded'});
               developer.log('Attachments array after uploading: $attachments');
             });
 
-            // _showDialog(
-            //   context,
-            //   'Success',
-            //   'File uploaded successfully!',
-            // );
+            // Show success dialog or handle success scenario
           } else {
             _showDialog(
               context,
@@ -306,6 +311,7 @@ class _UserAddAttachmentState extends State<UserAddAttachment> {
                         child: _buildAttachmentItem(
                           attachment['name'],
                           attachment['status'],
+                          attachment['bytes'],
                         ),
                       ),
                   const Spacer(),
@@ -417,8 +423,9 @@ class _UserAddAttachmentState extends State<UserAddAttachment> {
     );
   }
 
-  Widget _buildAttachmentItem(String? fileName, String? status) {
-    if (fileName == null || status == null) return Container();
+  Widget _buildAttachmentItem(
+      String? fileName, String? status, Uint8List? bytes) {
+    if (fileName == null || status == null || bytes == null) return Container();
 
     return Row(
       children: [
@@ -428,7 +435,12 @@ class _UserAddAttachmentState extends State<UserAddAttachment> {
             color: Colors.grey[300],
             borderRadius: BorderRadius.circular(4.0),
           ),
-          child: const Icon(Icons.image),
+          child: Image.memory(
+            bytes,
+            width: 50,
+            height: 50,
+            fit: BoxFit.cover,
+          ),
         ),
         const SizedBox(width: 16.0),
         Column(

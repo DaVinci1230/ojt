@@ -10,7 +10,6 @@ import 'package:intl/intl.dart';
 
 class AdminHomePage extends StatefulWidget {
   const AdminHomePage({Key? key}) : super(key: key);
-
   @override
   _AdminHomePageState createState() => _AdminHomePageState();
 }
@@ -20,7 +19,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
   int pendingCount = 0;
   late Future<List<Transaction>> _transactionsFuture;
   List<Transaction> selectedTransactions = [];
-  double totalSelectedAmount = 0.0; // Track the total selected amount
+  double totalSelectedAmount = 0.0;
   bool allSelected = false;
 
   @override
@@ -40,6 +39,10 @@ class _AdminHomePageState extends State<AdminHomePage> {
           List<Transaction> fetchedTransactions = jsonData
               .map((transaction) => Transaction.fromJson(transaction))
               .toList();
+
+          fetchedTransactions.sort(
+              (a, b) => b.onlineProcessDate.compareTo(a.onlineProcessDate));
+
           setState(() {
             pendingCount = fetchedTransactions
                 .where((transaction) =>
@@ -47,6 +50,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
                     transaction.onlineTransactionStatus == 'T')
                 .length;
           });
+
           return fetchedTransactions;
         } else {
           throw Exception('Unexpected response format');
@@ -58,6 +62,14 @@ class _AdminHomePageState extends State<AdminHomePage> {
     } catch (e) {
       throw Exception('Failed to fetch transaction details: $e');
     }
+  }
+
+  void _refreshTransactionList() {
+    setState(() {
+      _transactionsFuture = _fetchTransactionDetails();
+      selectedTransactions.clear();
+      totalSelectedAmount = 0.0;
+    });
   }
 
   void _toggleTransactionSelection(Transaction transaction) {
@@ -86,7 +98,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
           var responseData = json.decode(response.body);
           if (responseData['status'] == 'success') {
             // Handle success message if needed
-            print('Transaction ${transaction.docNo} rejected successfully');
+            print('Transaction ${transaction.docNo} approved successfully');
           } else {
             throw Exception(
                 'Failed to approve transaction ${transaction.docNo}');
@@ -99,6 +111,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Transactions approved successfully')),
       );
+      _refreshTransactionList();
     } catch (e) {
       print('Error rejeceting transactions: $e');
       ScaffoldMessenger.of(context).showSnackBar(
@@ -106,6 +119,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
       );
     }
   }
+
   Future<void> _rejectTransaction(List<Transaction> transactions) async {
     try {
       for (Transaction transaction in transactions) {
@@ -134,6 +148,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Transactions rejected successfully')),
       );
+      _refreshTransactionList();
     } catch (e) {
       print('Error rejeceting transactions: $e');
       ScaffoldMessenger.of(context).showSnackBar(
@@ -420,7 +435,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
                                 return CustomCardExample(
                                   transaction: transaction,
                                   isSelectAll: false,
-                                  showSelectAllButton: false,
+                                  showSelectAllButton: true,
                                   onSelectChanged: (bool isSelected) {
                                     _toggleTransactionSelection(transaction);
                                   },
@@ -428,7 +443,6 @@ class _AdminHomePageState extends State<AdminHomePage> {
                                       (double selectedAmount) {
                                     print(
                                         'Selected amount changed: $selectedAmount');
-                                    // Handle selected amount change here if needed
                                   },
                                   isSelected: selectedTransactions
                                       .contains(transaction),

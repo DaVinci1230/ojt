@@ -1,23 +1,22 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:intl/intl.dart';
-import 'package:ojt/transmittal_screens/no_support_transmit.dart';
-import 'package:ojt/transmittal_screens/review_data.dart';
 import 'package:scrollable_table_view/scrollable_table_view.dart';
 
 import '../models/user_transaction.dart';
-import '../screens_user/user_menu.dart';
+import 'fetching_uploader_data.dart';
+import 'no_support_details_uploader.dart';
+import 'uploader_menu.dart';
 
-class TransmittalHomePage extends StatefulWidget {
-  const TransmittalHomePage({Key? key}) : super(key: key);
+class UploaderNoSupport extends StatefulWidget {
+  const UploaderNoSupport({Key? key}) : super(key: key);
 
   @override
-  _TransmittalHomePageState createState() => _TransmittalHomePageState();
+  _UploaderNoSupportState createState() => _UploaderNoSupportState();
 }
 
-class _TransmittalHomePageState extends State<TransmittalHomePage> {
+class _UploaderNoSupportState extends State<UploaderNoSupport> {
   late List<Transaction> transactions;
   late bool isLoading;
   String selectedColumn = 'docRef';
@@ -25,7 +24,7 @@ class _TransmittalHomePageState extends State<TransmittalHomePage> {
   bool isAscending = true;
   int currentPage = 1;
   int rowsPerPage = 20;
-  int _selectedIndex = 0; // Add this line to manage the active tab state
+  int _selectedIndex = 1; // Add this line to manage the active tab state
 
   @override
   void initState() {
@@ -46,19 +45,19 @@ class _TransmittalHomePageState extends State<TransmittalHomePage> {
       case 0:
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const TransmittalHomePage()),
+          MaterialPageRoute(builder: (context) => const fetchUpload()),
         );
         break;
       case 1:
-      Navigator.pushReplacement(
+        Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const NoSupportTransmit()),
+          MaterialPageRoute(builder: (context) => const UploaderNoSupport()),
         );
         break;
       case 2:
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const MenuWindow()),
+          MaterialPageRoute(builder: (context) => const UploaderMenuWindow()),
         );
         break;
     }
@@ -67,14 +66,15 @@ class _TransmittalHomePageState extends State<TransmittalHomePage> {
   Future<void> fetchTransactions() async {
     try {
       final response = await http.get(Uri.parse(
-          'http://127.0.0.1/localconnect/fetch_transaction_data.php'));
+          'http://127.0.0.1/localconnect/fetch_transaction_transmitter.php'));
 
       if (response.statusCode == 200) {
         setState(() {
           final List<dynamic> data = json.decode(response.body);
           transactions = data
               .map((json) => Transaction.fromJson(json))
-              .where((transaction) => transaction.onlineProcessingStatus == 'U')
+              .where(
+                  (transaction) => transaction.onlineProcessingStatus == 'ND')
               .toList();
           isLoading = false;
         });
@@ -87,6 +87,7 @@ class _TransmittalHomePageState extends State<TransmittalHomePage> {
       throw Exception('Failed to connect to server.');
     }
   }
+
   void previousPage() {
     setState(() {
       if (currentPage > 1) currentPage--;
@@ -157,9 +158,9 @@ class _TransmittalHomePageState extends State<TransmittalHomePage> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => ReviewData(
+        builder: (context) => UploaderNoSupportDetails(
           transaction: transaction,
-          selectedDetails: [], attachments: [], // Adjust based on your requirements
+          selectedDetails: [], // Adjust based on your requirements
         ),
       ),
     );
@@ -190,7 +191,7 @@ class _TransmittalHomePageState extends State<TransmittalHomePage> {
                 ),
                 const SizedBox(width: 8),
                 const Text(
-                  'For Transmittal',
+                  'No Support Required',
                   style: TextStyle(
                     fontSize: 16,
                     color: Color.fromARGB(255, 233, 227, 227),
@@ -219,7 +220,13 @@ class _TransmittalHomePageState extends State<TransmittalHomePage> {
                   ),
                 ),
                 IconButton(
-                  onPressed: () {},
+                  onPressed: () {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                          builder: (context) => const UploaderMenuWindow()),
+                    );
+                  },
                   icon: const Icon(
                     Icons.person,
                     size: 24, // Adjust size as needed
@@ -265,7 +272,8 @@ class _TransmittalHomePageState extends State<TransmittalHomePage> {
                                           : Alignment.center,
                                     );
                                   }).toList(),
-                                  rows: paginatedTransactions.map((transaction) {
+                                  rows:
+                                      paginatedTransactions.map((transaction) {
                                     return TableViewRow(
                                       height: 55,
                                       onTap: () {
@@ -307,23 +315,7 @@ class _TransmittalHomePageState extends State<TransmittalHomePage> {
                             ],
                           ),
                         ),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.baseline,
-                          textBaseline: TextBaseline.alphabetic,
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.arrow_back),
-                              onPressed: previousPage,
-                            ),
-                            Text(
-                                '$currentPage / ${((transactions.length - 1) / rowsPerPage).ceil()}'),
-                            IconButton(
-                              icon: const Icon(Icons.arrow_forward),
-                              onPressed: nextPage,
-                            ),
-                          ],
-                        ),
+                       
                       ],
                     ),
                   ),

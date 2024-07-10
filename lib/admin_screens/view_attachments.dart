@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_pdfview/flutter_pdfview.dart';
@@ -28,6 +29,10 @@ class _ViewAttachmentsState extends State<ViewAttachments> {
     super.initState();
     _attachmentsFuture = _fetchAttachments();
   }
+
+Future<String>_loadAsset(String path) async{
+  return await rootBundle.loadString(path);
+}
 
   Future<List<Attachment>> _fetchAttachments() async {
     try {
@@ -58,7 +63,7 @@ class _ViewAttachmentsState extends State<ViewAttachments> {
         fileName.endsWith('.jpg') ||
         fileName.endsWith('.png')) {
       return Image.asset(
-        attachment.fileName, // Correctly formatted asset path
+        'assets/$fileName',
         width: MediaQuery.of(context).size.width * 0.95,
         height: MediaQuery.of(context).size.height * 0.62,
         fit: BoxFit.fill,

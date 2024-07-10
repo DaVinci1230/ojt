@@ -1,24 +1,27 @@
 import 'dart:convert';
-import 'dart:io'; // Add this line
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_pdfview/flutter_pdfview.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:dio/dio.dart';
-import 'package:image/image.dart' as Img;
 
-class ViewAttachments extends StatefulWidget {
+class ReprocessPreviousAttachments extends StatefulWidget {
   final String docType;
   final String docNo;
 
-  ViewAttachments({required this.docType, required this.docNo});
+  ReprocessPreviousAttachments({
+    required this.docType,
+    required this.docNo,
+  });
 
   @override
-  _ViewAttachmentsState createState() => _ViewAttachmentsState();
+  _ReprocessPreviousAttachmentsState createState() => _ReprocessPreviousAttachmentsState();
 }
 
-class _ViewAttachmentsState extends State<ViewAttachments> {
+class _ReprocessPreviousAttachmentsState extends State<ReprocessPreviousAttachments> {
   late Future<List<Attachment>> _attachmentsFuture;
 
   @override
@@ -27,10 +30,14 @@ class _ViewAttachmentsState extends State<ViewAttachments> {
     _attachmentsFuture = _fetchAttachments();
   }
 
+Future<String>_loadAsset(String path) async{
+  return await rootBundle.loadString(path);
+}
+
   Future<List<Attachment>> _fetchAttachments() async {
     try {
       var url = Uri.parse(
-          'http://192.168.68.116/localconnect/view_attachment.php?doc_type=${widget.docType}&doc_no=${widget.docNo}');
+          'http://127.0.0.1/localconnect/view_attachment.php?doc_type=${widget.docType}&doc_no=${widget.docNo}');
       var response = await http.get(url);
 
       if (response.statusCode == 200) {
@@ -56,14 +63,14 @@ class _ViewAttachmentsState extends State<ViewAttachments> {
         fileName.endsWith('.jpg') ||
         fileName.endsWith('.png')) {
       return Image.asset(
-        'assets/${attachment.fileName}', // Correctly formatted asset path
+        'assets/$fileName',
         width: MediaQuery.of(context).size.width * 0.95,
         height: MediaQuery.of(context).size.height * 0.62,
         fit: BoxFit.fill,
       );
     } else if (fileName.endsWith('.pdf')) {
       return FutureBuilder(
-        future: _getPdfFile(attachment.filePath),
+        future: _getPdfFile(attachment.fileName),
         builder: (context, snapshot) {
           if (snapshot.hasData) {
             return SizedBox(
@@ -101,8 +108,10 @@ class _ViewAttachmentsState extends State<ViewAttachments> {
     showDialog(
       context: context,
       builder: (context) => Dialog(
+          child: Container(
         child: Column(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisSize: MainAxisSize.max,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             GestureDetector(
               onTap: () {
@@ -118,25 +127,19 @@ class _ViewAttachmentsState extends State<ViewAttachments> {
             ),
           ],
         ),
-      ),
+      )),
     );
   }
 
   Future<void> _downloadFile(String fileUrl, String fileName) async {
     try {
-      Directory? dir = await getApplicationDocumentsDirectory();
-      if (dir != null) {
-        String fullPath = "${dir.path}/$fileName";
-        Dio dio = Dio();
-        await dio.download(fileUrl, fullPath);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Downloaded $fileName to $fullPath')),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to get the application directory')),
-        );
-      }
+      var dir = await getApplicationDocumentsDirectory();
+      String fullPath = "${dir.path}/$fileName";
+      Dio dio = Dio();
+      await dio.download(fileUrl, fullPath);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Downloaded $fileName')),
+      );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error downloading file: $e')),
@@ -198,8 +201,8 @@ class Attachment {
 
   factory Attachment.fromJson(Map<String, dynamic> json) {
     return Attachment(
-      fileName: json['file_name'],
-      filePath: json['file_path'],
+      fileName: json['file_name'].toString(),
+      filePath: json['file_path'].toString(),
     );
   }
 }

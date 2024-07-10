@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:intl/intl.dart';
-import 'package:ojt/transmittal_screens/review_data.dart';
+
+import 'package:ojt/transmittal_screens/transmitter_menu.dart';
 import 'package:scrollable_table_view/scrollable_table_view.dart';
 
 import '../models/user_transaction.dart';
-import '../screens_user/user_menu.dart';
-import 'fetching_data.dart';
+
+import 'fetching_transmital_data.dart';
 import 'no_support_details_transmit.dart';
+import 'transmitter_homepage.dart';
+
 
 class NoSupportTransmit extends StatefulWidget {
   const NoSupportTransmit({Key? key}) : super(key: key);
@@ -26,7 +29,7 @@ class _NoSupportTransmitState extends State<NoSupportTransmit> {
   bool isAscending = true;
   int currentPage = 1;
   int rowsPerPage = 20;
-  int _selectedIndex = 0; // Add this line to manage the active tab state
+  int _selectedIndex = 1; // Add this line to manage the active tab state
 
   @override
   void initState() {
@@ -59,11 +62,21 @@ class _NoSupportTransmitState extends State<NoSupportTransmit> {
       case 2:
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const MenuWindow()),
+          MaterialPageRoute(builder: (context) => const TransmitMenuWindow()),
         );
         break;
     }
   }
+
+  void _navigateToTransmitterHomePage(BuildContext context) {
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (context) => const TransmitterHomePage(key: Key('value')),
+    ),
+  );
+}
+
 
   Future<void> fetchTransactions() async {
     try {
@@ -75,7 +88,7 @@ class _NoSupportTransmitState extends State<NoSupportTransmit> {
           final List<dynamic> data = json.decode(response.body);
           transactions = data
               .map((json) => Transaction.fromJson(json))
-              .where((transaction) => transaction.onlineProcessingStatus == 'UND')
+              .where((transaction) => transaction.onlineProcessingStatus == 'ND')
               .toList();
           isLoading = false;
         });
@@ -177,6 +190,7 @@ class _NoSupportTransmitState extends State<NoSupportTransmit> {
 
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         backgroundColor: Color.fromARGB(255, 79, 128, 189),
         toolbarHeight: 77,
         title: Row(
@@ -184,6 +198,14 @@ class _NoSupportTransmitState extends State<NoSupportTransmit> {
           children: [
             Row(
               children: [
+                 IconButton(
+                  onPressed: () => _navigateToTransmitterHomePage(context),
+                  icon: const Icon(
+                    Icons.arrow_back,
+                    size: 24,
+                    color: Color.fromARGB(255, 0, 0, 0),
+                  ),
+                ),
                 Image.asset(
                   'logo.png',
                   width: 60,
@@ -191,7 +213,7 @@ class _NoSupportTransmitState extends State<NoSupportTransmit> {
                 ),
                 const SizedBox(width: 8),
                 const Text(
-                  'For Transmittal',
+                  'For Transmittal No Support Required',
                   style: TextStyle(
                     fontSize: 16,
                     color: Color.fromARGB(255, 233, 227, 227),
@@ -308,40 +330,21 @@ class _NoSupportTransmitState extends State<NoSupportTransmit> {
                             ],
                           ),
                         ),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.baseline,
-                          textBaseline: TextBaseline.alphabetic,
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.arrow_back),
-                              onPressed: previousPage,
-                            ),
-                            Text(
-                                '$currentPage / ${((transactions.length - 1) / rowsPerPage).ceil()}'),
-                            IconButton(
-                              icon: const Icon(Icons.arrow_forward),
-                              onPressed: nextPage,
-                            ),
-                          ],
-                        ),
+                       
                       ],
                     ),
                   ),
                 ),
               ),
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        selectedItemColor: Color.fromARGB(255, 79, 128, 189),
-        onTap: _onItemTapped,
-        items: const [
+       bottomNavigationBar: BottomNavigationBar(
+        items: const <BottomNavigationBarItem>[
           BottomNavigationBarItem(
             icon: Icon(Icons.upload_file_outlined),
-            label: 'Upload',
+            label: 'Transmit',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.quiz),
+            icon: Icon(Icons.task_sharp),
             label: 'No Support',
           ),
           BottomNavigationBarItem(
@@ -349,6 +352,9 @@ class _NoSupportTransmitState extends State<NoSupportTransmit> {
             label: 'Menu',
           ),
         ],
+        currentIndex: _selectedIndex,
+        selectedItemColor: const Color.fromARGB(255, 0, 110, 255),
+        onTap: _onItemTapped,
       ),
     );
   }

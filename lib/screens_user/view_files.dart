@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:path/path.dart';
+
 import 'package:flutter/services.dart' show rootBundle;
 
 import '../admin_screens/notifications.dart';
@@ -148,7 +148,6 @@ class _ViewFilesPageState extends State<ViewFilesPage> {
                       children: [
                         Image.asset(
                           attachment['name']!,
-                          
                         ),
                         Text(attachment['status']!),
                       ],

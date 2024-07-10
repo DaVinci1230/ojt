@@ -1,17 +1,17 @@
 import 'dart:convert';
-import 'dart:io';
-import 'dart:typed_data';
-import 'package:file_picker/file_picker.dart';
 import 'dart:developer' as developer;
 import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:ojt/transmittal_screens/no_support_transmit.dart';
+import 'package:ojt/transmittal_screens/transmitter_menu.dart';
 import 'package:ojt/transmittal_screens/view_attachment.dart';
 import '../admin_screens/notifications.dart';
 import '../models/user_transaction.dart';
-import '../screens_user/transmitter_homepage.dart';
+import 'fetching_transmital_data.dart';
 import '../screens_user/user_menu.dart';
 import '../screens_user/user_upload.dart';
+import 'view_attachment.dart';
 
 
 class ReviewData extends StatefulWidget {
@@ -32,7 +32,6 @@ class ReviewData extends StatefulWidget {
 
 class _ReviewDataState extends State<ReviewData> {
   int _selectedIndex = 0;
-  bool _showRemarks = false;
   bool _isLoading = false;
 
   List<Map<String, String>> attachments = [];
@@ -76,15 +75,15 @@ class _ReviewDataState extends State<ReviewData> {
         );
         break;
       case 1:
-        // Navigator.pushReplacement(
-        //   context,
-        //   MaterialPageRoute(builder: (context) => const NoSupportScreen()),
-        // );
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const NoSupportTransmit()),
+        );
         break;
       case 2:
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const MenuWindow()),
+          MaterialPageRoute(builder: (context) => const TransmitMenuWindow()),
         );
         break;
     }
@@ -202,7 +201,7 @@ class _ReviewDataState extends State<ReviewData> {
         buildTableRow('Check', detail.checkNumber),
         buildTableRow('Bank', detail.bankName),
         buildTableRow('Amount', formatAmount(detail.checkAmount)),
-        buildTableRow('Status', detail.transactionStatus),
+        buildTableRow('Status', detail.transactionStatusWord),
         buildTableRow('Remarks', detail.remarks),
       ],
     );
@@ -311,18 +310,12 @@ Widget build(BuildContext context) {
                     onPressed: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(
-                          builder: (context) => ViewTransmit(
-                            attachments: widget.attachments,
-                            onDelete: (int index) {
-                              setState(() {
-                                attachments.removeAt(index);
-                              });
-                              developer.log(
-                                  'Attachment removed from UserSendAttachment: $index');
-                            },
-                          ),
-                        ),
+                         MaterialPageRoute(
+                      builder: (context) => ViewTransmit(
+                        docType: widget.transaction.docType,
+                        docNo: widget.transaction.docNo,
+                      ),
+                    ),
                       );
                     },
                     icon: Icon(Icons.folder_open),
@@ -342,7 +335,7 @@ Widget build(BuildContext context) {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => TransmitterHomePage(key: Key('value')),
+                                builder: (context) => TransmittalHomePage(key: Key('value')),
                               ),
                             );
                           },

@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:intl/intl.dart';
 import 'package:scrollable_table_view/scrollable_table_view.dart';
 
 import '../models/user_transaction.dart'; // Import your Transaction model
-import 'disbursement_details.dart';
 import 'no_support_details.dart';
 import 'user_menu.dart';
 import 'user_upload.dart'; // Import the DisbursementDetailsScreen
@@ -50,7 +48,7 @@ class _NoSupportScreenState extends State<NoSupportScreen> {
           MaterialPageRoute(builder: (context) => const HomePage()),
         );
         break;
-       case 1:
+      case 1:
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => const NoSupportScreen()),
@@ -75,7 +73,8 @@ class _NoSupportScreenState extends State<NoSupportScreen> {
           final List<dynamic> data = json.decode(response.body);
           transactions = data
               .map((json) => Transaction.fromJson(json))
-              .where((transaction) => transaction.onlineProcessingStatus == 'UND')
+              .where(
+                  (transaction) => transaction.onlineProcessingStatus == 'UND')
               .toList();
           isLoading = false;
         });

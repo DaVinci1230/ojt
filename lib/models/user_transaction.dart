@@ -4,27 +4,36 @@ class Transaction {
   final String transactingParty;
   final DateTime transDate;
   final double checkAmount;
+  final String checkAm;
   final String transactionStatus;
   final String remarks;
+  final String approverRemarks;
   final String checkBankDrawee;
   final String checkNumber;
   final String bankName;
+  final String checkDate;
   final String dateTrans;
   String? onlineProcessingStatus; // Make it nullable
+  String? onlineTransactionStatus;
+final  String onlineProcessDate;
 
   Transaction({
     required this.docType,
     required this.docNo,
     required this.transactingParty,
     required this.transDate,
+    required this.checkAm,
     required this.checkAmount,
     required this.transactionStatus,
     required this.remarks,
+    required this.approverRemarks,
     required this.checkBankDrawee,
     required this.checkNumber,
     required this.bankName,
+    required this.checkDate,
     required this.dateTrans,
-    this.onlineProcessingStatus, // Make it optional in the constructor
+    this.onlineProcessingStatus,
+    required this.onlineProcessDate,// Make it optional in the constructor
   });
 
   factory Transaction.fromJson(Map<String, dynamic> json) {
@@ -34,16 +43,20 @@ class Transaction {
     return Transaction(
       docType: json['doc_type'].toString(),
       docNo: json['doc_no'].toString(),
+      checkAm: json['check_amount'].toString(),
       transactingParty: json['transacting_party'].toString(),
       transDate: parsedDate,
       checkAmount: double.parse(json['check_amount'].toString()),
       transactionStatus: json['transaction_status'].toString(),
       remarks: json['remarks'].toString(),
+      approverRemarks: json['approver_remarks'].toString(),
       checkBankDrawee: json['check_drawee_bank'].toString(),
       checkNumber: json['check_no'].toString(),
       bankName: json['check_drawee_bank'].toString(),
+      checkDate: json['check_date'] ?? '',
       dateTrans: json['date_trans'].toString(),
       onlineProcessingStatus: json['online_processing_status'], // Initialize with null safety
+      onlineProcessDate: json['online_process_date'] ?? ''
     );
   }
 
@@ -59,6 +72,20 @@ class Transaction {
         return 'Cancelled';
       default:
         return 'Unknown';
+    }
+  }
+    String get onlineProcessingStatusWord {
+    switch (onlineProcessingStatus) {
+      case 'A':
+        return 'Approved';
+      case 'R':
+        return 'Returned';
+      case 'T':
+        return 'On Process';
+      case 'TND':
+        return 'On Process';
+      default:
+        return 'Rejected';
     }
   }
 }

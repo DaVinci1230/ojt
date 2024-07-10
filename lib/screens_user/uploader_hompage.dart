@@ -1,8 +1,7 @@
-import 'disbursement_details.dart';
+import 'package:flutter/material.dart';
+import '../widgets/navBar.dart';
 import 'user_menu.dart';
 import 'user_upload.dart';
-import 'package:flutter/material.dart';
-import 'disbursement_details.dart';
 
 class UploaderHomePage extends StatefulWidget {
   const UploaderHomePage({Key? key}) : super(key: key);
@@ -23,18 +22,9 @@ class _UploaderHomePageState extends State<UploaderHomePage> {
 
     switch (index) {
       case 0:
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const UploaderHomePage()),
-        );
+        // Do nothing or set a new state for the same page
         break;
       case 1:
-         Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const HomePage()),
-        );
-        break;
-      case 2:
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => const MenuWindow()),
@@ -151,24 +141,9 @@ class _UploaderHomePageState extends State<UploaderHomePage> {
           ),
         ),
       ),
-      bottomNavigationBar: BottomNavigationBar(
+      bottomNavigationBar: BottomNavBar(
         currentIndex: _selectedIndex,
-        selectedItemColor: const Color.fromARGB(255, 79, 128, 189),
         onTap: _onItemTapped,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.upload_file_outlined),
-            label: 'Upload',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.quiz),
-            label: 'No Support',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.menu_sharp),
-            label: 'Menu',
-          ),
-        ],
       ),
     );
   }

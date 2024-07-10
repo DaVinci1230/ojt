@@ -2,15 +2,16 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:ojt/transmittal_screens/no_support_transmit.dart';
 import '/screens_user/no_support.dart';
 import 'package:http/http.dart' as http;
 
 
 import '../admin_screens/notifications.dart';
 import '../models/user_transaction.dart';
-import '../screens_user/transmitter_homepage.dart';
 import '../screens_user/user_menu.dart';
-import 'fetching_data.dart';
+import 'fetching_transmital_data.dart';
+import 'transmitter_homepage.dart';
 
 class NoSupportTransmitDetails extends StatefulWidget {
   final Transaction transaction;
@@ -31,8 +32,7 @@ String createDocRef(String docType, String docNo) {
 }
 
 class _NoSupportTransmitDetailsState extends State<NoSupportTransmitDetails> {
-  int _selectedIndex = 0;
-  final bool _showRemarks = false;
+  int _selectedIndex = 1;
   bool _isLoading = false;
 
   @override
@@ -82,7 +82,14 @@ class _NoSupportTransmitDetailsState extends State<NoSupportTransmitDetails> {
         break;
     }
   }
-  
+    void _navigateToTransmitterHomePage(BuildContext context) {
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (context) => const TransmitterHomePage(key: Key('value')),
+    ),
+  );
+}
   Future<void> _uploadTransaction() async {
   setState(() {
     _isLoading = true; // Show loading indicator
@@ -163,7 +170,7 @@ class _NoSupportTransmitDetailsState extends State<NoSupportTransmitDetails> {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => TransmitterHomePage(key: Key('value')),
+                                builder: (context) =>NoSupportTransmit(key: Key('value')),
                               ),
                             );
                           },
@@ -324,7 +331,7 @@ class _NoSupportTransmitDetailsState extends State<NoSupportTransmitDetails> {
         items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.upload_file_outlined),
-            label: 'Upload',
+            label: 'Transmit',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.quiz),

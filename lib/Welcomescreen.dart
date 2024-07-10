@@ -15,8 +15,8 @@ class WelcomeScreen extends StatelessWidget {
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [
-              Color.fromARGB(255, 72, 52, 185),
-              Color.fromARGB(255, 121, 87, 247),
+              Color.fromARGB(255, 79, 128, 189),
+              Color.fromARGB(255, 79, 128, 189),
             ],
           ),
         ),
