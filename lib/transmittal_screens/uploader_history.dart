@@ -33,7 +33,7 @@ class _UploaderHistoryState extends State<UploaderHistory> {
       setState(() {});
 
       var url =
-          Uri.parse('http://127.0.0.1/localconnect/transmitter_history.php');
+          Uri.parse('http://192.168.131.94/localconnect/transmitter_history.php');
       var response = await http.get(url);
 
       if (response.statusCode == 200) {
@@ -226,8 +226,8 @@ class _UploaderHistoryState extends State<UploaderHistory> {
             return transaction.transactionStatus == 'N';
           case 'Returned':
             return transaction.transactionStatus == 'R' && transaction.onlineTransactionStatus == 'R';
-          case 'On process':
-          return transaction.transactionStatus == 'R' && transaction.onlineProcessingStatus == 'TND';
+          case 'On Process':
+          return transaction.onlineProcessingStatus == 'T' || transaction.onlineProcessingStatus == 'TND';
           default:
             return true;
         }

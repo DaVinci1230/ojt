@@ -45,7 +45,7 @@ class _CustomCardExampleState extends State<CustomCardExample>
   Future<void> _approvedTransaction(String docNo, String docType) async {
     try {
       final response = await http.post(
-        Uri.parse('http://127.0.0.1/localconnect/approve.php'),
+        Uri.parse('http://192.168.131.94/localconnect/approve.php'),
         body: {
           'doc_no': docNo,
           'doc_type': docType,
@@ -87,7 +87,7 @@ class _CustomCardExampleState extends State<CustomCardExample>
   Future<void> _fetchCheckDetails(String docNo, String docType) async {
     try {
       final response = await http.get(Uri.parse(
-          'http://127.0.0.1/localconnect/view_details.php?doc_no=$docNo&doc_type=$docType'));
+          'http://192.168.131.94/localconnect/view_details.php?doc_no=$docNo&doc_type=$docType'));
 
       if (response.statusCode == 200) {
         List<dynamic> data = json.decode(response.body);
@@ -111,7 +111,7 @@ class _CustomCardExampleState extends State<CustomCardExample>
       String docNo, String docType, String approverRemarks) async {
     try {
       final response = await http.post(
-        Uri.parse('http://127.0.0.1/localconnect/return.php'),
+        Uri.parse('http://192.168.131.94/localconnect/return.php'),
         body: {
           'doc_no': docNo,
           'doc_type': docType,
@@ -204,7 +204,7 @@ class _CustomCardExampleState extends State<CustomCardExample>
   Future<void> _rejectTransaction(String docNo, String docType) async {
     try {
       final response = await http.post(
-        Uri.parse('http://127.0.0.1/localconnect/reject.php'),
+        Uri.parse('http://192.168.131.94/localconnect/reject.php'),
         body: {
           'doc_no': docNo,
           'doc_type': docType,
@@ -469,7 +469,7 @@ class _CustomCardExampleState extends State<CustomCardExample>
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(screenWidth * 0.03),
         ),
-        color: Color.fromARGB(255, 79, 98, 189),
+        color: Color.fromARGB(255, 79, 128, 189),
         child: Padding(
           padding: EdgeInsets.all(screenHeight * 0.015),
           child: Column(

@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:intl/intl.dart';
-import 'package:ojt/screens_user/no_support.dart';
+import '/screens_user/no_support.dart';
+import '/widgets/navBar.dart';
+import '/widgets/table.dart';
 import 'package:scrollable_table_view/scrollable_table_view.dart';
 import '../models/user_transaction.dart'; // Import your Transaction model
 import 'disbursement_details.dart';
@@ -50,12 +52,6 @@ class _HomePageState extends State<HomePage> {
       case 1:
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const NoSupportScreen()),
-        );
-        break;
-      case 2:
-        Navigator.pushReplacement(
-          context,
           MaterialPageRoute(builder: (context) => const MenuWindow()),
         );
         break;
@@ -65,7 +61,7 @@ class _HomePageState extends State<HomePage> {
   Future<void> fetchTransactions() async {
     try {
       final response = await http.get(Uri.parse(
-          'http://127.0.0.1/localconnect/fetch_transaction_data.php'));
+          'http://192.168.131.94/localconnect/fetch_transaction_data.php'));
 
       if (response.statusCode == 200) {
         setState(() {
@@ -174,181 +170,101 @@ class _HomePageState extends State<HomePage> {
         .toList();
 
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Color.fromARGB(255, 79, 128, 189),
-        toolbarHeight: 77,
-        title: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Row(
-              children: [
-                Image.asset(
-                  'logo.png',
-                  width: 60,
-                  height: 55,
-                ),
-                const SizedBox(width: 8),
-                const Text(
-                  'For Uploading',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Color.fromARGB(255, 233, 227, 227),
+        appBar: AppBar(
+          backgroundColor: Color.fromARGB(255, 79, 128, 189),
+          toolbarHeight: 77,
+          title: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Image.asset(
+                    'logo.png',
+                    width: 60,
+                    height: 55,
                   ),
-                ),
-              ],
-            ),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                Container(
-                  margin: EdgeInsets.only(right: screenSize.width * 0.02),
-                  child: IconButton(
-                    onPressed: () {
-                      // Navigator.push(
-                      //   context,
-                      //   MaterialPageRoute(
-                      //       builder: (context) => NotificationScreen()),
-                      // );
-                    },
+                  const SizedBox(width: 8),
+                  const Text(
+                    'For Uploading',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Color.fromARGB(255, 233, 227, 227),
+                    ),
+                  ),
+                ],
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  Container(
+                    margin: EdgeInsets.only(right: screenSize.width * 0.02),
+                    child: IconButton(
+                      onPressed: () {
+                        // Navigator.push(
+                        //   context,
+                        //   MaterialPageRoute(
+                        //       builder: (context) => NotificationScreen()),
+                        // );
+                      },
+                      icon: const Icon(
+                        Icons.notifications,
+                        size: 24, // Adjust size as needed
+                        color: Color.fromARGB(255, 233, 227, 227),
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () {},
                     icon: const Icon(
-                      Icons.notifications,
+                      Icons.person,
                       size: 24, // Adjust size as needed
                       color: Color.fromARGB(255, 233, 227, 227),
                     ),
                   ),
-                ),
-                IconButton(
-                  onPressed: () {},
-                  icon: const Icon(
-                    Icons.person,
-                    size: 24, // Adjust size as needed
-                    color: Color.fromARGB(255, 233, 227, 227),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-      body: Center(
-        child: isLoading
-            ? const CircularProgressIndicator()
-            : ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Container(
-                  margin: const EdgeInsets.all(16.0),
-                  child: Container(
-                    padding: EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(8.0),
-                      border: Border.all(
-                          color: Color.fromARGB(255, 79, 128, 189),
-                          strokeAlign: BorderSide.strokeAlignOutside,
-                          width: 2.0),
-                    ),
-                    child: Column(
-                      children: [
-                        Expanded(
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: ScrollableTableView(
-                                  headers: headers.map((columnName) {
-                                    return TableViewHeader(
-                                      labelFontSize: 12,
-                                      label: columnName,
-                                      padding: const EdgeInsets.all(8),
-                                      minWidth: 150,
-                                      alignment: columnName == 'Amount'
-                                          ? Alignment.centerRight
-                                          : Alignment.center,
-                                    );
-                                  }).toList(),
-                                  rows:
-                                      paginatedTransactions.map((transaction) {
-                                    return TableViewRow(
-                                      height: 55,
-                                      onTap: () {
-                                        navigateToDetails(transaction);
-                                      },
-                                      cells: [
-                                        TableViewCell(
-                                          alignment: Alignment.center,
-                                          padding: const EdgeInsets.all(8.0),
-                                          child: Text(
-                                            createDocRef(
-                                                transaction.docType,
-                                                transaction.docNo,
-                                                transaction.transDate),
-                                            softWrap: true,
-                                          ),
-                                        ),
-                                        TableViewCell(
-                                          padding: const EdgeInsets.all(8.0),
-                                          alignment: Alignment.centerLeft,
-                                          child: Text(
-                                            transaction.transactingParty,
-                                            softWrap: true,
-                                          ),
-                                        ),
-                                        TableViewCell(
-                                          alignment: Alignment.centerRight,
-                                          child: Text(
-                                            formatAmount(
-                                                transaction.checkAmount),
-                                            softWrap: true,
-                                          ),
-                                        ),
-                                      ],
-                                    );
-                                  }).toList(),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.baseline,
-                          textBaseline: TextBaseline.alphabetic,
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.arrow_back),
-                              onPressed: previousPage,
-                            ),
-                            Text(
-                                '$currentPage / ${((transactions.length - 1) / rowsPerPage).ceil()}'),
-                            IconButton(
-                              icon: const Icon(Icons.arrow_forward),
-                              onPressed: nextPage,
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+                ],
               ),
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        selectedItemColor: Color.fromARGB(255, 79, 128, 189),
-        onTap: _onItemTapped,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.upload_file_outlined),
-            label: 'Upload',
+            ],
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.quiz),
-            label: 'No Support',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.menu_sharp),
-            label: 'Menu',
-          ),
-        ],
-      ),
-    );
+        ),
+        body: Center(
+          child: isLoading
+              ? const CircularProgressIndicator()
+              : ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    margin: const EdgeInsets.all(16.0),
+                    child: Container(
+                      padding: EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(8.0),
+                        border: Border.all(
+                            color: Color.fromARGB(255, 79, 128, 189),
+                            strokeAlign: BorderSide.strokeAlignOutside,
+                            width: 2.0),
+                      ),
+                      child: Column(
+                        children: [
+                          Expanded(
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: ScrollableTableViewWidget(
+                                    headers: headers,
+                                    transactions: paginatedTransactions,
+                                    onRowTap: navigateToDetails,
+                                    rows: [],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+        ),
+        bottomNavigationBar:
+            BottomNavBar(currentIndex: _selectedIndex, onTap: _onItemTapped));
   }
 }

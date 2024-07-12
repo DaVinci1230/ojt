@@ -15,8 +15,8 @@ class Transaction {
   final String dateTrans;
   String? onlineProcessingStatus; // Make it nullable
   String? onlineTransactionStatus;
-final  String onlineProcessDate;
-
+  final  String onlineProcessDate;
+  final String notification;
   Transaction({
     required this.docType,
     required this.docNo,
@@ -33,7 +33,8 @@ final  String onlineProcessDate;
     required this.checkDate,
     required this.dateTrans,
     this.onlineProcessingStatus,
-    required this.onlineProcessDate,// Make it optional in the constructor
+    required this.onlineProcessDate,
+    required this.notification,
   });
 
   factory Transaction.fromJson(Map<String, dynamic> json) {
@@ -56,7 +57,8 @@ final  String onlineProcessDate;
       checkDate: json['check_date'] ?? '',
       dateTrans: json['date_trans'].toString(),
       onlineProcessingStatus: json['online_processing_status'], // Initialize with null safety
-      onlineProcessDate: json['online_process_date'] ?? ''
+      onlineProcessDate: json['online_process_date'] ?? '',
+      notification: json['notification'].toString(),
     );
   }
 
@@ -79,10 +81,14 @@ final  String onlineProcessDate;
       case 'A':
         return 'Approved';
       case 'R':
-        return 'Returned';
-      case 'T':
+        return 'Returned'; 
+      case 'U':
+        return 'On Process';
+      case 'ND':
         return 'On Process';
       case 'TND':
+        return 'On Approval';
+      case 'T':
         return 'On Process';
       default:
         return 'Rejected';

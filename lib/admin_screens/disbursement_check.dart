@@ -58,7 +58,7 @@ class _DisbursementChequeState extends State<DisbursementCheque>
       String onlineTransactionStatus) async {
     try {
       var url = Uri.parse(
-          'http://127.0.0.1/localconnect/get_transaction.php?onlineTransactionStatus=$onlineTransactionStatus');
+          'http://192.168.131.94/localconnect/get_transaction.php?onlineTransactionStatus=$onlineTransactionStatus');
       var response = await http.get(url);
 
       if (response.statusCode == 200) {
@@ -254,7 +254,7 @@ class _DisbursementChequeState extends State<DisbursementCheque>
     try {
       for (Transaction transaction in transactions) {
         final response = await http.post(
-          Uri.parse('http://127.0.0.1/localconnect/reject.php'),
+          Uri.parse('http://192.168.131.94/localconnect/reject.php'),
           body: {
             'doc_no': transaction.docNo,
             'doc_type': transaction.docType,
@@ -296,7 +296,7 @@ class _DisbursementChequeState extends State<DisbursementCheque>
     try {
       for (Transaction transaction in transactions) {
         final response = await http.post(
-          Uri.parse('http://127.0.0.1/localconnect/approve.php'),
+          Uri.parse('http://192.168.131.94/localconnect/approve.php'),
           body: {
             'doc_no': transaction.docNo,
             'doc_type': transaction.docType,
@@ -390,7 +390,7 @@ class _DisbursementChequeState extends State<DisbursementCheque>
             Row(
               children: [
                 Image.asset(
-                  'logo.png',
+                  'assets/logo.png',
                   width: 60,
                   height: 55,
                 ),
@@ -425,7 +425,13 @@ class _DisbursementChequeState extends State<DisbursementCheque>
                   ),
                 ),
                 IconButton(
-                  onPressed: () {},
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (context) => const AdminMenuWindow()),
+                    );
+                  },
                   icon: const Icon(
                     Icons.person,
                     size: 24,
@@ -700,7 +706,7 @@ class _DisbursementChequeState extends State<DisbursementCheque>
                         ),
                       ),
                       buildSelectAllButton(),
-                      SizedBox(width: 8), 
+                      SizedBox(width: 8),
                       Text(
                         'Select All',
                         style: TextStyle(

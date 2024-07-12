@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '/loginScreen.dart';
-import 'fetching_transmital_data.dart';
-import 'no_support_transmit.dart';
+import 'fetch_reprocessing.dart';
+
 
 class ReprocessMenuWindow extends StatefulWidget {
   const ReprocessMenuWindow({Key? key}) : super(key: key);
@@ -11,7 +11,7 @@ class ReprocessMenuWindow extends StatefulWidget {
 }
 
 class _MenuState extends State<ReprocessMenuWindow> {
-  int _selectedIndex = 2;
+  int _selectedIndex = 1;
 
   void _onItemTapped(int index) {
     if (_selectedIndex == index) return;
@@ -24,16 +24,10 @@ class _MenuState extends State<ReprocessMenuWindow> {
       case 0:
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const TransmittalHomePage()),
+          MaterialPageRoute(builder: (context) => const FetchReprocess()),
         );
         break;
       case 1:
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const NoSupportTransmit()),
-        );
-        break;
-      case 2:
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => const ReprocessMenuWindow()),
@@ -202,10 +196,6 @@ class _MenuState extends State<ReprocessMenuWindow> {
           BottomNavigationBarItem(
             icon: Icon(Icons.upload_file_outlined),
             label: 'Upload',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.task_sharp),
-            label: 'No Support',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.menu_sharp),

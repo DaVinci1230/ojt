@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:intl/intl.dart';
 import 'package:scrollable_table_view/scrollable_table_view.dart';
 import '../models/user_transaction.dart'; // Import your Transaction model
+import '../widgets/table.dart';
 import 'no_support_uploader.dart';
 import 'transmitter_homepage.dart';
 import 'uploader_menu.dart';
@@ -75,7 +76,7 @@ class _fetchUploadState extends State<fetchUpload> {
   Future<void> fetchTransactions() async {
     try {
       final response = await http.get(Uri.parse(
-          'http://127.0.0.1/localconnect/fetch_transaction_data.php'));
+          'http://192.168.131.94/localconnect/fetch_transaction_data.php'));
 
       if (response.statusCode == 200) {
         setState(() {
@@ -279,62 +280,16 @@ class _fetchUploadState extends State<fetchUpload> {
                           child: Row(
                             children: [
                               Expanded(
-                                child: ScrollableTableView(
-                                  headers: headers.map((columnName) {
-                                    return TableViewHeader(
-                                      labelFontSize: 12,
-                                      label: columnName,
-                                      padding: const EdgeInsets.all(8),
-                                      minWidth: 150,
-                                      alignment: columnName == 'Amount'
-                                          ? Alignment.centerRight
-                                          : Alignment.center,
-                                    );
-                                  }).toList(),
-                                  rows:
-                                      paginatedTransactions.map((transaction) {
-                                    return TableViewRow(
-                                      height: 55,
-                                      onTap: () {
-                                        navigateToDetails(transaction);
-                                      },
-                                      cells: [
-                                        TableViewCell(
-                                          alignment: Alignment.center,
-                                          padding: const EdgeInsets.all(8.0),
-                                          child: Text(
-                                            createDocRef(
-                                                transaction.docType,
-                                                transaction.docNo,
-                                                transaction.transDate),
-                                            softWrap: true,
-                                          ),
-                                        ),
-                                        TableViewCell(
-                                          padding: const EdgeInsets.all(8.0),
-                                          alignment: Alignment.centerLeft,
-                                          child: Text(
-                                            transaction.transactingParty,
-                                            softWrap: true,
-                                          ),
-                                        ),
-                                        TableViewCell(
-                                          alignment: Alignment.centerRight,
-                                          child: Text(
-                                            formatAmount(
-                                                transaction.checkAmount),
-                                            softWrap: true,
-                                          ),
-                                        ),
-                                      ],
-                                    );
-                                  }).toList(),
+                                child: ScrollableTableViewWidget(
+                                  headers: headers,
+                                  transactions: paginatedTransactions,
+                                  onRowTap: navigateToDetails,
+                                  rows: [],
                                 ),
                               ),
                             ],
                           ),
                         ),
-                        
                       ],
                     ),
                   ),

@@ -7,6 +7,7 @@ import 'package:ojt/transmittal_screens/no_support_transmit.dart';
 import 'package:scrollable_table_view/scrollable_table_view.dart';
 
 import '../models/user_transaction.dart';
+import '../widgets/table.dart';
 import 'review_data.dart';
 import 'transmitter_menu.dart';
 import 'transmitter_homepage.dart';
@@ -51,7 +52,7 @@ class _TransmittalHomePageState extends State<TransmittalHomePage> {
         );
         break;
       case 1:
-      Navigator.pushReplacement(
+        Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => const NoSupportTransmit()),
         );
@@ -64,19 +65,20 @@ class _TransmittalHomePageState extends State<TransmittalHomePage> {
         break;
     }
   }
-  void _navigateToTransmitterHomePage(BuildContext context) {
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (context) => TransmitterHomePage(key: Key('value')),
-    ),
-  );
-}
 
- Future<void> fetchTransactions() async {
+  void _navigateToTransmitterHomePage(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => TransmitterHomePage(key: Key('value')),
+      ),
+    );
+  }
+
+  Future<void> fetchTransactions() async {
     try {
       final response = await http.get(Uri.parse(
-          'http://127.0.0.1/localconnect/fetch_transaction_data.php'));
+          'http://192.168.131.94/localconnect/fetch_transaction_data.php'));
 
       if (response.statusCode == 200) {
         setState(() {
@@ -96,6 +98,7 @@ class _TransmittalHomePageState extends State<TransmittalHomePage> {
       throw Exception('Failed to connect to server.');
     }
   }
+
   void previousPage() {
     setState(() {
       if (currentPage > 1) currentPage--;
@@ -168,7 +171,8 @@ class _TransmittalHomePageState extends State<TransmittalHomePage> {
       MaterialPageRoute(
         builder: (context) => ReviewData(
           transaction: transaction,
-          selectedDetails: [], attachments: [], // Adjust based on your requirements
+          selectedDetails: [],
+          attachments: [], // Adjust based on your requirements
         ),
       ),
     );
@@ -193,14 +197,14 @@ class _TransmittalHomePageState extends State<TransmittalHomePage> {
           children: [
             Row(
               children: [
-                               IconButton(
-              onPressed: () => _navigateToTransmitterHomePage(context),
-              icon: const Icon(
-                Icons.arrow_back,
-                size: 24,
-                color: Color.fromARGB(255, 0, 0, 0),
-              ),
-            ),
+                IconButton(
+                  onPressed: () => _navigateToTransmitterHomePage(context),
+                  icon: const Icon(
+                    Icons.arrow_back,
+                    size: 24,
+                    color: Color.fromARGB(255, 0, 0, 0),
+                  ),
+                ),
                 Image.asset(
                   'logo.png',
                   width: 60,
@@ -271,61 +275,16 @@ class _TransmittalHomePageState extends State<TransmittalHomePage> {
                           child: Row(
                             children: [
                               Expanded(
-                                child: ScrollableTableView(
-                                  headers: headers.map((columnName) {
-                                    return TableViewHeader(
-                                      labelFontSize: 12,
-                                      label: columnName,
-                                      padding: const EdgeInsets.all(8),
-                                      minWidth: 150,
-                                      alignment: columnName == 'Amount'
-                                          ? Alignment.centerRight
-                                          : Alignment.center,
-                                    );
-                                  }).toList(),
-                                  rows: paginatedTransactions.map((transaction) {
-                                    return TableViewRow(
-                                      height: 55,
-                                      onTap: () {
-                                        navigateToDetails(transaction);
-                                      },
-                                      cells: [
-                                        TableViewCell(
-                                          alignment: Alignment.center,
-                                          padding: const EdgeInsets.all(8.0),
-                                          child: Text(
-                                            createDocRef(
-                                                transaction.docType,
-                                                transaction.docNo,
-                                                transaction.transDate),
-                                            softWrap: true,
-                                          ),
-                                        ),
-                                        TableViewCell(
-                                          padding: const EdgeInsets.all(8.0),
-                                          alignment: Alignment.centerLeft,
-                                          child: Text(
-                                            transaction.transactingParty,
-                                            softWrap: true,
-                                          ),
-                                        ),
-                                        TableViewCell(
-                                          alignment: Alignment.centerRight,
-                                          child: Text(
-                                            formatAmount(
-                                                transaction.checkAmount),
-                                            softWrap: true,
-                                          ),
-                                        ),
-                                      ],
-                                    );
-                                  }).toList(),
+                                child: ScrollableTableViewWidget(
+                                  headers: headers,
+                                  transactions: paginatedTransactions,
+                                  onRowTap: navigateToDetails,
+                                  rows: [],
                                 ),
                               ),
                             ],
                           ),
                         ),
-                     
                       ],
                     ),
                   ),

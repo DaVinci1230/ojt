@@ -17,6 +17,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   String selectedFilter = 'All';
   DateTime? startDate;
   DateTime? endDate;
+  bool isOldestFirst = false;
 
   @override
   void initState() {
@@ -25,6 +26,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     startDate = DateTime(now.year, now.month, 1);
     endDate = now;
     _loadTransactions();
+    isOldestFirst = false;
   }
 
   Future<void> _loadTransactions() async {
@@ -32,18 +34,18 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
       // Show loading indicator here
       setState(() {});
 
-      var url =
-          Uri.parse('http://127.0.0.1/localconnect/transaction_history.php');
+      var url = Uri.parse(
+          'http://192.168.131.94/localconnect/transaction_history.php');
       var response = await http.get(url);
-
       if (response.statusCode == 200) {
         var jsonData = jsonDecode(response.body);
         if (jsonData is List) {
           List<Transaction> fetchedTransactions = jsonData
               .map((transaction) => Transaction.fromJson(transaction))
               .toList();
-          fetchedTransactions.sort(
-              (a, b) => b.onlineProcessDate.compareTo(a.onlineProcessDate));
+          fetchedTransactions.sort((a, b) => isOldestFirst
+              ? a.onlineProcessDate.compareTo(b.onlineProcessDate)
+              : b.onlineProcessDate.compareTo(a.onlineProcessDate));
           setState(() {
             transactions = fetchedTransactions
                 .where((transaction) =>
@@ -61,7 +63,6 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             'Failed to load transaction details: ${response.statusCode}');
       }
     } catch (e) {
-      // Show error message to user
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Failed to fetch transaction details: $e'),
@@ -69,7 +70,6 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         ),
       );
     } finally {
-      // Hide loading indicator here
       setState(() {});
     }
   }
@@ -106,14 +106,15 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final screenSize = MediaQuery.of(context).size;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Transaction History'),
       ),
       body: Column(
         children: [
-          _buildFilterButton(),
-          _buildDateRangePicker(context),
+          _buildFilterButton(screenSize),
+          _buildDateRangePicker(context, screenSize),
           Expanded(
             child: _buildTransactionList(),
           )
@@ -122,49 +123,74 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     );
   }
 
-  Widget _buildFilterButton() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.end,
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(15),
-          child: Row(
-            children: [
-              DropdownButton<String>(
-                value: selectedFilter,
-                dropdownColor: Color.fromARGB(255, 235, 238, 240),
-                onChanged: (String? newValue) {
-                  setState(() {
-                    selectedFilter = newValue!;
-                  });
-                  _loadTransactions(); // Reload transactions after filter change
-                },
-                items: <String>['All', 'Approved', 'Rejected', 'Returned']
-                    .map<DropdownMenuItem<String>>((String value) {
-                  return DropdownMenuItem<String>(
-                    value: value,
-                    child: Text(value),
-                  );
-                }).toList(),
+  Widget _buildFilterButton(Size screenSize) {
+    return Padding(
+      padding: EdgeInsets.all(screenSize.width * 0.03),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          ElevatedButton(
+            onPressed: () {
+              setState(() {
+                isOldestFirst = !isOldestFirst;
+              });
+              _loadTransactions();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(screenSize.width * 0.02),
               ),
-              const SizedBox(
-                width: 15,
-              )
-            ],
+              padding: EdgeInsets.symmetric(
+                horizontal: screenSize.width * 0.05,
+                vertical: screenSize.height * 0.02,
+              ),
+            ),
+            child: Text(
+              isOldestFirst ? 'Oldest First' : 'Newest First',
+              style: TextStyle(
+                fontSize: screenSize.width * 0.03,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
           ),
-        ),
-      ],
+          DropdownButton<String>(
+            value: selectedFilter,
+            dropdownColor: Color.fromARGB(255, 235, 238, 240),
+            onChanged: (String? newValue) {
+              setState(() {
+                selectedFilter = newValue!;
+              });
+              _loadTransactions();
+            },
+            items: <String>['All', 'Approved', 'Rejected', 'Returned']
+                .map<DropdownMenuItem<String>>((String value) {
+              return DropdownMenuItem<String>(
+                value: value,
+                child: Text(
+                  value,
+                  style: TextStyle(fontSize: screenSize.width * 0.03),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildDateRangePicker(BuildContext context) {
+  Widget _buildDateRangePicker(BuildContext context, Size screenSize) {
     final DateFormat formatter = DateFormat('MMMM d, y');
     return Padding(
-      padding: const EdgeInsets.all(8.0),
+      padding: EdgeInsets.all(screenSize.width * 0.02),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          Text('From'),
+          Text(
+            'From',
+            style: TextStyle(fontSize: screenSize.width * 0.03),
+          ),
           ElevatedButton(
             onPressed: () {
               _selectStartDate(context);
@@ -172,21 +198,24 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.blue,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(5),
+                borderRadius: BorderRadius.circular(screenSize.width * 0.02),
               ),
-              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              padding: EdgeInsets.symmetric(
+                horizontal: screenSize.width * 0.05,
+                vertical: screenSize.height * 0.02,
+              ),
             ),
             child: Text(
               formatter.format(startDate!),
               style: TextStyle(
-                // Style
                 color: Colors.black,
+                fontSize: screenSize.width * 0.03,
               ),
             ),
           ),
           Text(
             'to',
-            style: TextStyle(fontSize: 16),
+            style: TextStyle(fontSize: screenSize.width * 0.03),
           ),
           ElevatedButton(
             onPressed: () {
@@ -195,15 +224,18 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.blue,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(5),
+                borderRadius: BorderRadius.circular(screenSize.width * 0.02),
               ),
-              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              padding: EdgeInsets.symmetric(
+                horizontal: screenSize.width * 0.05,
+                vertical: screenSize.height * 0.02,
+              ),
             ),
             child: Text(
               formatter.format(endDate!),
               style: TextStyle(
-                // Style
                 color: Colors.black,
+                fontSize: screenSize.width * 0.03,
               ),
             ),
           )
@@ -213,6 +245,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   }
 
   Widget _buildTransactionList() {
+    final screenSize = MediaQuery.of(context).size;
     List<Transaction> filteredTransactions = transactions;
     if (selectedFilter != 'All') {
       filteredTransactions = filteredTransactions.where((transaction) {
@@ -244,9 +277,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 
     if (filteredTransactions.isEmpty) {
       return Center(
-        child: const Text(
+        child: Text(
           'No transactions found!',
-          style: TextStyle(fontSize: 16),
+          style: TextStyle(fontSize: screenSize.width * 0.04),
         ),
       );
     } else {

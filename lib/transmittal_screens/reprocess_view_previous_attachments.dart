@@ -1,9 +1,7 @@
 import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
-import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_pdfview/flutter_pdfview.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:dio/dio.dart';
@@ -18,43 +16,18 @@ class ReprocessPreviousAttachments extends StatefulWidget {
   });
 
   @override
-  _ReprocessPreviousAttachmentsState createState() => _ReprocessPreviousAttachmentsState();
+  _ReprocessPreviousAttachmentsState createState() =>
+      _ReprocessPreviousAttachmentsState();
 }
 
-class _ReprocessPreviousAttachmentsState extends State<ReprocessPreviousAttachments> {
+class _ReprocessPreviousAttachmentsState
+    extends State<ReprocessPreviousAttachments> {
   late Future<List<Attachment>> _attachmentsFuture;
 
   @override
   void initState() {
     super.initState();
     _attachmentsFuture = _fetchAttachments();
-  }
-
-Future<String>_loadAsset(String path) async{
-  return await rootBundle.loadString(path);
-}
-
-  Future<List<Attachment>> _fetchAttachments() async {
-    try {
-      var url = Uri.parse(
-          'http://127.0.0.1/localconnect/view_attachment.php?doc_type=${widget.docType}&doc_no=${widget.docNo}');
-      var response = await http.get(url);
-
-      if (response.statusCode == 200) {
-        var jsonData = jsonDecode(response.body);
-        if (jsonData is List) {
-          return jsonData
-              .map((attachment) => Attachment.fromJson(attachment))
-              .toList();
-        } else {
-          throw Exception('Unexpected response format');
-        }
-      } else {
-        throw Exception('Failed to load attachments: ${response.statusCode}');
-      }
-    } catch (e) {
-      throw Exception('Failed to fetch attachments: $e');
-    }
   }
 
   Widget _buildAttachmentWidget(Attachment attachment) {
@@ -70,7 +43,7 @@ Future<String>_loadAsset(String path) async{
       );
     } else if (fileName.endsWith('.pdf')) {
       return FutureBuilder(
-        future: _getPdfFile(attachment.fileName),
+        future: _getPdfFile(attachment.filePath),
         builder: (context, snapshot) {
           if (snapshot.hasData) {
             return SizedBox(
@@ -108,26 +81,30 @@ Future<String>_loadAsset(String path) async{
     showDialog(
       context: context,
       builder: (context) => Dialog(
-          child: Container(
-        child: Column(
-          mainAxisSize: MainAxisSize.max,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            GestureDetector(
-              onTap: () {
-                Navigator.of(context).pop();
-              },
-              child: _buildAttachmentWidget(
-                Attachment(fileName: fileName, filePath: filePath),
+        child: Container(
+          child: Column(
+            mainAxisSize: MainAxisSize.max,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              GestureDetector(
+                onTap: () {
+                  Navigator.of(context).pop();
+                },
+                child: _buildAttachmentWidget(
+                  Attachment(
+                    fileName: fileName,
+                    filePath: filePath,
+                  ),
+                ),
               ),
-            ),
-            ElevatedButton(
-              onPressed: () => _downloadFile(filePath, fileName),
-              child: Text('Download'),
-            ),
-          ],
+              ElevatedButton(
+                onPressed: () => _downloadFile(filePath, fileName),
+                child: Text('Download'),
+              ),
+            ],
+          ),
         ),
-      )),
+      ),
     );
   }
 
@@ -147,11 +124,97 @@ Future<String>_loadAsset(String path) async{
     }
   }
 
+  void _confirmRemoveAttachment(int index) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Confirm Deletion'),
+        content: Text(
+            'This file will be deleted from database.\nAre you sure to remove this file?'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+            },
+            child: Text('No'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _removeAttachment(index);
+            },
+            child: Text('Yes'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _removeAttachment(int index) async {
+    try {
+      Attachment attachment = (await _attachmentsFuture)[index];
+      final response = await http.post(
+        Uri.parse(
+            'http://192.168.131.94/localconnect/remove_previous_attachment.php'),
+        body: {
+          'file_path': attachment.filePath,
+          'file_name': attachment.fileName,
+        },
+      );
+
+      if (response.statusCode == 200) {
+        var responseData = json.decode(response.body);
+        print('Server response: $responseData'); // Log the server response
+        if (responseData['status'] == 'success') {
+          setState(() {
+            _attachmentsFuture = _fetchAttachments();
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Attachment removed successfully')),
+          );
+        } else {
+          throw Exception(
+              'Failed to remove attachment: ${responseData['message']}');
+        }
+      } else {
+        throw Exception('Failed to remove attachment: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error removing attachment: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error removing attachment: $e')),
+      );
+    }
+  }
+
+  Future<List<Attachment>> _fetchAttachments() async {
+    try {
+      var url = Uri.parse(
+          'http://192.168.131.94/localconnect/view_attachment.php?doc_type=${widget.docType}&doc_no=${widget.docNo}');
+      var response = await http.get(url);
+
+      if (response.statusCode == 200) {
+        var jsonData = jsonDecode(response.body);
+        if (jsonData is List) {
+          return jsonData
+              .map((attachment) => Attachment.fromJson(attachment))
+              .toList();
+        } else {
+          throw Exception('Unexpected response format');
+        }
+      } else {
+        throw Exception('Failed to load attachments: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Failed to fetch attachments: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Color.fromARGB(255, 9, 41, 145),
+        backgroundColor: Color.fromARGB(255, 79, 128, 189),
         toolbarHeight: 77,
         title: Text(
           'Attachments',
@@ -173,14 +236,18 @@ Future<String>_loadAsset(String path) async{
               itemCount: attachments.length,
               itemBuilder: (context, index) {
                 return Card(
-                  child: GestureDetector(
+                  child: ListTile(
+                    title: Text(attachments[index].fileName),
+                    subtitle: _buildAttachmentWidget(attachments[index]),
+                    trailing: IconButton(
+                      icon: Icon(Icons.delete, color: Colors.red),
+                      onPressed: () {
+                        _confirmRemoveAttachment(index);
+                      },
+                    ),
                     onTap: () => _showAttachmentDetails(
                       attachments[index].fileName,
                       attachments[index].filePath,
-                    ),
-                    child: ListTile(
-                      title: Text(attachments[index].fileName),
-                      subtitle: _buildAttachmentWidget(attachments[index]),
                     ),
                   ),
                 );
@@ -197,7 +264,10 @@ class Attachment {
   final String fileName;
   final String filePath;
 
-  Attachment({required this.fileName, required this.filePath});
+  Attachment({
+    required this.fileName,
+    required this.filePath,
+  });
 
   factory Attachment.fromJson(Map<String, dynamic> json) {
     return Attachment(

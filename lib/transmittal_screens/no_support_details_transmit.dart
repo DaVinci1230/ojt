@@ -96,7 +96,7 @@ class _NoSupportTransmitDetailsState extends State<NoSupportTransmitDetails> {
   });
 
   try {
-    var uri = Uri.parse('http://127.0.0.1/localconnect/UserUploadUpdate/transmitter/update_ops_tnd.php');
+    var uri = Uri.parse('http://192.168.131.94/localconnect/UserUploadUpdate/transmitter/update_ops_tnd.php');
     var request = http.Request('POST', uri);
 
     // URL-encode the values

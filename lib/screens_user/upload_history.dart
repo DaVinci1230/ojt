@@ -32,8 +32,8 @@ class _MarkHistoryState extends State<MarkHistory> {
       // Show loading indicator here
       setState(() {});
 
-      var url =
-          Uri.parse('http://127.0.0.1/localconnect/transmitter_history.php');
+      var url = Uri.parse(
+          'http://192.168.131.94/localconnect/transmitter_history.php');
       var response = await http.get(url);
 
       if (response.statusCode == 200) {
@@ -50,10 +50,9 @@ class _MarkHistoryState extends State<MarkHistory> {
                     (transaction.transactionStatus == 'R' &&
                         transaction.onlineProcessingStatus == 'T') ||
                     (transaction.transactionStatus == 'R' &&
-                    transaction.onlineProcessingStatus == 'TND') ||
-                    transaction.transactionStatus == 'N' 
-                    || transaction.transactionStatus == 'A'
-                    ) 
+                        transaction.onlineProcessingStatus == 'TND') ||
+                    transaction.transactionStatus == 'N' ||
+                    transaction.transactionStatus == 'A')
                 .toList();
           });
         } else {
@@ -142,8 +141,13 @@ class _MarkHistoryState extends State<MarkHistory> {
                   });
                   _loadTransactions(); // Reload transactions after filter change
                 },
-                items: <String>['All', 'Approved', 'Rejected', 'Returned', 'On process']
-                    .map<DropdownMenuItem<String>>((String value) {
+                items: <String>[
+                  'All',
+                  'Approved',
+                  'Rejected',
+                  'Returned',
+                  'On process'
+                ].map<DropdownMenuItem<String>>((String value) {
                   return DropdownMenuItem<String>(
                     value: value,
                     child: Text(value),
@@ -225,9 +229,11 @@ class _MarkHistoryState extends State<MarkHistory> {
           case 'Rejected':
             return transaction.transactionStatus == 'N';
           case 'Returned':
-            return transaction.transactionStatus == 'R' && transaction.onlineTransactionStatus == 'R';
+            return transaction.transactionStatus == 'R' &&
+                transaction.onlineTransactionStatus == 'R';
           case 'On process':
-          return transaction.transactionStatus == 'R' && transaction.onlineProcessingStatus == 'TND';
+            return transaction.transactionStatus == 'R' &&
+                transaction.onlineProcessingStatus == 'TND';
           default:
             return true;
         }

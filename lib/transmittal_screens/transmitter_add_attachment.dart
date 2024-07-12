@@ -1,9 +1,12 @@
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:typed_data';
+import 'dart:ui';
+import 'package:image/image.dart' as img;
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 import '../models/user_transaction.dart';
 import '../transmittal_screens/transmitter_homepage.dart';
 import '../transmittal_screens/transmitter_send_attachment.dart';
@@ -53,37 +56,36 @@ class _TransmitterAddAttachmentState extends State<TransmitterAddAttachment> {
         break;
       case 2:
         Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                          builder: (context) => const UploaderMenuWindow()),
-                    );
+          context,
+          MaterialPageRoute(builder: (context) => const UploaderMenuWindow()),
+        );
         break;
     }
   }
 
- Future<void> _pickFile() async {
-  developer.log('Picking file...');
-  FilePickerResult? result =
-      await FilePicker.platform.pickFiles(allowMultiple: true);
+  Future<void> _pickFile() async {
+    developer.log('Picking file...');
+    FilePickerResult? result =
+        await FilePicker.platform.pickFiles(allowMultiple: true);
 
-  if (result != null && result.files.isNotEmpty) {
-    setState(() {
-      for (var file in result.files) {
-        String fileName = file.name ?? 'Unknown';
-        String sanitizedFileName = sanitizeFileName(fileName);
-        attachments.add({
-          'name': sanitizedFileName,
-          'status': 'Selected',
-          'bytes': file.bytes,
-          'size': file.size,
-        });
-      }});
-    developer.log('Files picked: ${result.files.length}');
-  } else {
-    developer.log('File picking cancelled');
+    if (result != null && result.files.isNotEmpty) {
+      setState(() {
+        for (var file in result.files) {
+          String fileName = file.name ?? 'Unknown';
+          String sanitizedFileName = sanitizeFileName(fileName);
+          attachments.add({
+            'name': sanitizedFileName,
+            'status': 'Selected',
+            'bytes': file.bytes,
+            'size': file.size,
+          });
+        }
+      });
+      developer.log('Files picked: ${result.files.length}');
+    } else {
+      developer.log('File picking cancelled');
+    }
   }
-}
-
 
   Future<void> _uploadFile(PlatformFile pickedFile) async {
     setState(() {
@@ -94,7 +96,7 @@ class _TransmitterAddAttachmentState extends State<TransmitterAddAttachment> {
       var request = http.MultipartRequest(
         'POST',
         Uri.parse(
-            'http://127.0.0.1/localconnect/UserUploadUpdate/upload_asset.php'),
+            'http://192.168.131.94/localconnect/UserUploadUpdate/upload_asset.php'),
       );
 
       // Add the 'doc_type', 'doc_no', and 'date_trans' fields to the request
@@ -170,6 +172,49 @@ class _TransmitterAddAttachmentState extends State<TransmitterAddAttachment> {
       });
     }
   }
+    Future<Uint8List> _compressImage(Uint8List imageData) async {
+    img.Image? image = img.decodeImage(imageData);
+    if (image != null) {
+      img.Image resizedImage = img.copyResize(image, width: 800);
+      return Uint8List.fromList(img.encodeJpg(resizedImage, quality: 85));
+    }
+    return imageData;
+  }
+
+  Future<void> _pickFromCamera() async {
+    final ImagePicker picker = ImagePicker();
+    final XFile? photo = await picker.pickImage(source: ImageSource.camera);
+
+    if (photo != null) {
+      String fileName = sanitizeFileName(photo.name);
+      Uint8List imageData = await photo.readAsBytes();
+      Uint8List compressedImageData = await _compressImage(imageData);
+
+      setState(() {
+        attachments.add({
+          'name': fileName,
+          'status': 'Selected',
+          'bytes': compressedImageData,
+          'size': compressedImageData.length,
+          'isLoading': true, // Start loading state
+          'isUploading': false,
+          'uploadProgress': 0.0,
+        });
+      });
+
+      // Simulate loading time for demo purposes
+      Future.delayed(Duration(seconds: 1), () {
+        setState(() {
+          attachments[attachments.length - 1]['isLoading'] =
+              false; // End loading state
+        });
+      });
+
+      developer.log('File picked from camera: $fileName');
+    } else {
+      developer.log('Camera picking cancelled');
+    }
+  }
 
   void _showDialog(BuildContext context, String title, String content) {
     showDialog(
@@ -189,9 +234,42 @@ class _TransmitterAddAttachmentState extends State<TransmitterAddAttachment> {
     );
   }
 
+  void _showUploadDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Select Option'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.camera_alt),
+                title: const Text('Camera'),
+                onTap: () async {
+                  Navigator.pop(context);
+                 await _pickFromCamera();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.upload_file),
+                title: const Text('Upload from File'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickFile();
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     Size screenSize = MediaQuery.of(context).size;
+    double screenHeight = screenSize.height;
     return Scaffold(
       appBar: AppBar(
         backgroundColor: const Color.fromARGB(255, 79, 128, 189),
@@ -233,7 +311,7 @@ class _TransmitterAddAttachmentState extends State<TransmitterAddAttachment> {
                     ),
                   ),
                 ),
-                               IconButton(
+                IconButton(
                   onPressed: () {
                     Navigator.pushReplacement(
                       context,
@@ -277,7 +355,7 @@ class _TransmitterAddAttachmentState extends State<TransmitterAddAttachment> {
                         borderRadius: BorderRadius.circular(16.0),
                       ),
                     ),
-                    onPressed: _pickFile,
+                    onPressed: _showUploadDialog,
                     child: Center(
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
@@ -290,7 +368,7 @@ class _TransmitterAddAttachmentState extends State<TransmitterAddAttachment> {
                           ),
                           SizedBox(height: 12.0),
                           Text(
-                            'Max. File Size: 5Mb',
+                            'Max. File Size: 50Mb',
                             style: TextStyle(
                               fontSize: 16.0,
                               color: Colors.grey,
@@ -306,18 +384,30 @@ class _TransmitterAddAttachmentState extends State<TransmitterAddAttachment> {
                       child: Text('Selected file: $_fileName'),
                     ),
                   const SizedBox(height: 20.0),
-                  for (var attachment in attachments)
-                    if (attachment['name'] != null &&
-                        attachment['bytes'] != null &&
-                        attachment['size'] != null)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 5.0),
-                        child: _buildAttachmentItem(
-                          attachment['name'],
-                          attachment['status'],
-                          attachment['bytes'],
-                        ),
+                  Container(
+                    height: screenSize.height * 0.45, // Set a fixed height to display more items
+                    child: SingleChildScrollView(
+                      child: Column(
+                        children: [
+                          for (var attachment in attachments)
+                            if (attachment['name'] != null &&
+                                attachment['bytes'] != null &&
+                                attachment['size'] != null)
+                              Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 5.0),
+                                child: _buildAttachmentItem(
+                                  attachment['name'],
+                                  attachment['status'],
+                                  attachment['bytes'],
+                                ),
+                              ),
+                        ],
                       ),
+                    ),
+                  ),
+    
+
                   const Spacer(),
                   Padding(
                     padding: const EdgeInsets.all(16.0),
@@ -381,7 +471,8 @@ class _TransmitterAddAttachmentState extends State<TransmitterAddAttachment> {
                                 builder: (context) => TransmitterSendAttachment(
                                   transaction: widget.transaction,
                                   selectedDetails: [],
-                                  attachments: attachmentsString, secAttachments: [],
+                                  attachments: attachmentsString,
+                                  secAttachments: [],
                                 ),
                               ),
                             );
@@ -447,23 +538,30 @@ class _TransmitterAddAttachmentState extends State<TransmitterAddAttachment> {
           ),
         ),
         const SizedBox(width: 16.0),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              fileName,
-              style: const TextStyle(
-                fontSize: 16.0,
+        Expanded(
+          // Ensure the filename can wrap within the available space
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                fileName,
+                style: const TextStyle(
+                  fontSize: 16.0,
+                ),
+                overflow:
+                    TextOverflow.ellipsis, // Ellipsis if filename is too long
+                maxLines: 1, // Constrain to one line
+                softWrap: false, // Prevent wrapping to the next line
               ),
-            ),
-            Text(
-              status,
-              style: const TextStyle(
-                fontSize: 12.0,
-                color: Colors.grey,
+              Text(
+                status,
+                style: const TextStyle(
+                  fontSize: 12.0,
+                  color: Colors.grey,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
         const Spacer(),
         IconButton(

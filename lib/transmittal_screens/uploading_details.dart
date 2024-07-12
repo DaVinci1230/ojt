@@ -87,7 +87,7 @@ class _TransmitterSendAttachmentState extends State<TransmitterSend> {
   });
 
   try {
-    var uri = Uri.parse('http://127.0.0.1/localconnect/UserUploadUpdate/transmitter_ops_und.php');
+    var uri = Uri.parse('http://192.168.131.94/localconnect/UserUploadUpdate/transmitter_ops_und.php');
     var request = http.Request('POST', uri);
 
     // URL-encode the values

@@ -1,11 +1,15 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import '/transmittal_screens/transmittal_notification.dart';
 import 'fetch_reprocessing.dart';
 import 'fetching_uploader_data.dart';
 import 'fetching_transmital_data.dart';
 import 'homepage_menu.dart';
 import '../models/user_transaction.dart';
+import 'package:badges/badges.dart' as badges;
+import 'package:badges/badges.dart'; 
+
 
 class TransmitterHomePage extends StatefulWidget {
   const TransmitterHomePage({Key? key}) : super(key: key);
@@ -20,6 +24,7 @@ class _TransmitterHomePageState extends State<TransmitterHomePage> {
   int _transmittalCount = 0;
   int _uploadingCount = 0;
   bool isLoading = true;
+  int notificationCount = 0; 
 
   @override
   void initState() {
@@ -27,10 +32,55 @@ class _TransmitterHomePageState extends State<TransmitterHomePage> {
     _fetchTransactionDetails();
   }
 
+
+Future<Map<String, int>> fetchNewNotificationCount() async {
+  try {
+    final response = await http.get(Uri.parse('http://127.0.0/localconnect/notification_count.php'));
+
+    if (response.statusCode == 200) {
+      final jsonResponse = jsonDecode(response.body);
+      return {
+        'reprocessingCount': jsonResponse['reprocessing_count'] ?? 0,
+        'transmittalCount': jsonResponse['transmittal_count'] ?? 0,
+        'uploadingCount': jsonResponse['uploading_count'] ?? 0,
+      };
+    } else {
+      throw Exception('Failed to load notification count');
+    }
+  } catch (e) {
+    print('Error fetching notification count: $e');
+    return {
+      'reprocessingCount': 0,
+      'transmittalCount': 0,
+      'uploadingCount': 0,
+    };
+  }
+}
+
+
+void updateNotificationCount(int reprocessingCount, int transmittalCount, int uploadingCount) {
+  setState(() {
+    notificationCount = reprocessingCount + transmittalCount + uploadingCount;
+    _reprocessingCount = reprocessingCount;
+    _transmittalCount = transmittalCount;
+    _uploadingCount = uploadingCount;
+  });
+}
+
+
+void onNewTransactionReceived() async {
+  final counts = await fetchNewNotificationCount();
+  updateNotificationCount(
+    counts['reprocessingCount']!,
+    counts['transmittalCount']!,
+    counts['uploadingCount']!,
+  );
+}
+
   Future<void> _fetchTransactionDetails() async {
     try {
       var url =
-          Uri.parse('http://127.0.0.1/localconnect/count_transaction.php');
+          Uri.parse('http://192.168.131.94/localconnect/count_transaction.php');
       var response = await http.get(url);
 
       if (response.statusCode == 200) {
@@ -54,8 +104,9 @@ class _TransmitterHomePageState extends State<TransmitterHomePage> {
                     transaction.onlineProcessingStatus == 'ND')
                 .length;
             _uploadingCount = fetchedTransactions
-                .where((transaction) => transaction.transactionStatus == 'R' &&
-                transaction.onlineProcessingStatus == '')
+                .where((transaction) =>
+                    transaction.transactionStatus == 'R' &&
+                    transaction.onlineProcessingStatus == '')
                 .length;
             isLoading = false;
           });
@@ -102,7 +153,8 @@ class _TransmitterHomePageState extends State<TransmitterHomePage> {
 
   @override
   Widget build(BuildContext context) {
-    final screenSize = MediaQuery.of(context).size;
+    Size screenSize = MediaQuery.of(context).size;
+    double screenHeight = screenSize.height;
 
     return Scaffold(
       appBar: AppBar(
@@ -115,7 +167,7 @@ class _TransmitterHomePageState extends State<TransmitterHomePage> {
             Row(
               children: [
                 Image.asset(
-                  'logo.png',
+                  'assets/logo.png',
                   width: 60,
                   height: 55,
                 ),
@@ -131,12 +183,28 @@ class _TransmitterHomePageState extends State<TransmitterHomePage> {
               ],
             ),
             Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                Container(
-                  margin: EdgeInsets.only(right: screenSize.width * 0.02),
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              Container(
+                margin: EdgeInsets.only(right: screenSize.width * 0.02),
+                child: badges.Badge(
+                  badgeContent: Text(
+                    '$notificationCount',  // Display the number of notifications
+                    style: TextStyle(color: Colors.white),
+                  ),
+                  badgeStyle: BadgeStyle(
+                    badgeColor: Colors.red,
+                    padding: EdgeInsets.all(6),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                   child: IconButton(
-                    onPressed: () {},
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (context) => TransmittalNotification()),
+                      );
+                    },
                     icon: const Icon(
                       Icons.notifications,
                       size: 24,
@@ -144,16 +212,23 @@ class _TransmitterHomePageState extends State<TransmitterHomePage> {
                     ),
                   ),
                 ),
-                IconButton(
-                  onPressed: () {},
-                  icon: const Icon(
-                    Icons.person,
-                    size: 24,
-                    color: Color.fromARGB(255, 233, 227, 227),
-                  ),
+              ),
+              IconButton(
+                onPressed: () {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => const HomepageMenuWindow()),
+                  );
+                },
+                icon: const Icon(
+                  Icons.person,
+                  size: 24,
+                  color: Color.fromARGB(255, 233, 227, 227),
                 ),
-              ],
-            ),
+              ),
+            ],
+          ),
           ],
         ),
       ),

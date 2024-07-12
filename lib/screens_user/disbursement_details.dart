@@ -2,8 +2,8 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:ojt/screens_user/no_support.dart';
-import 'package:ojt/screens_user/uploader_hompage.dart';
+import '/screens_user/no_support.dart';
+import '/screens_user/uploader_hompage.dart';
 
 import '../admin_screens/notifications.dart';
 import '../models/user_transaction.dart';
@@ -24,7 +24,8 @@ class DisbursementDetailsScreen extends StatefulWidget {
   }) : super(key: key);
 
   @override
-  _DisbursementDetailsScreenState createState() => _DisbursementDetailsScreenState();
+  _DisbursementDetailsScreenState createState() =>
+      _DisbursementDetailsScreenState();
 }
 
 String createDocRef(String docType, String docNo) {
@@ -83,127 +84,134 @@ class _DisbursementDetailsScreenState extends State<DisbursementDetailsScreen> {
         break;
     }
   }
+
   Future<void> _uploadTransaction() async {
-  setState(() {
-    _isLoading = true; // Show loading indicator
-  });
+    setState(() {
+      _isLoading = true; // Show loading indicator
+    });
 
-  try {
-    var uri = Uri.parse('http://127.0.0.1/localconnect/UserUploadUpdate/update_ops_und.php');
-    var request = http.Request('POST', uri);
+    try {
+      var uri = Uri.parse(
+          'http://192.168.131.94/localconnect/UserUploadUpdate/update_ops_und.php');
+      var request = http.Request('POST', uri);
 
-    // URL-encode the values
-    var requestBody = 'doc_type=${Uri.encodeComponent(widget.transaction!.docType)}&doc_no=${Uri.encodeComponent(widget.transaction!.docNo)}&date_trans=${Uri.encodeComponent(widget.transaction!.dateTrans)}';
+      // URL-encode the values
+      var requestBody =
+          'doc_type=${Uri.encodeComponent(widget.transaction!.docType)}&doc_no=${Uri.encodeComponent(widget.transaction!.docNo)}&date_trans=${Uri.encodeComponent(widget.transaction!.dateTrans)}';
 
-    request.headers['Content-Type'] = 'application/x-www-form-urlencoded';
-    request.body = requestBody;
+      request.headers['Content-Type'] = 'application/x-www-form-urlencoded';
+      request.body = requestBody;
 
-    var response = await request.send();
+      var response = await request.send();
 
-    if (response.statusCode == 200) {
-      var responseBody = await response.stream.bytesToString();
-      var result = jsonDecode(responseBody);
+      if (response.statusCode == 200) {
+        var responseBody = await response.stream.bytesToString();
+        var result = jsonDecode(responseBody);
 
-      if (result['status'] == 'Success') {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(result['message'])),
-        );
+        if (result['status'] == 'Success') {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(result['message'])),
+          );
 
-        // Navigate back to previous screen (DisbursementDetailsScreen)
-        Navigator.pop(context);
+          // Navigate back to previous screen (DisbursementDetailsScreen)
+          Navigator.pop(context);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(result['message'])),
+          );
+        }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(result['message'])),
+          SnackBar(
+              content: Text(
+                  'Transaction upload failed with status: ${response.statusCode}')),
         );
       }
-    } else {
+    } catch (e) {
+      print('Error uploading transaction: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-            content: Text(
-                'Transaction upload failed with status: ${response.statusCode}')),
+            content:
+                Text('Error uploading transaction. Please try again later.')),
       );
+    } finally {
+      setState(() {
+        _isLoading = false; // Hide loading indicator
+      });
     }
-  } catch (e) {
-    print('Error uploading transaction: $e');
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-          content: Text('Error uploading transaction. Please try again later.')),
-    );
-  } finally {
-    setState(() {
-      _isLoading = false; // Hide loading indicator
-    });
   }
-}
 
   Widget buildDetailsCard(Transaction detail) {
     return Container(
-  child: Card(
-    semanticContainer: true,
-    borderOnForeground: true,
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(15),
-    ),
-    elevation: 4,
-    child: Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          buildReadOnlyTextField('Transacting Party', detail.transactingParty),
-          SizedBox(height: 20),
-          buildTable(detail),
-          SizedBox(height: 20),
-          Center(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => UserAddAttachment(
-                          transaction: detail,
-                          selectedDetails: [],
-                        ),
-                      ),
-                    );
-                  },
-                  child: Text('Add Attachment'),
-                  style: TextButton.styleFrom(
-                    foregroundColor: Colors.white,
-                    backgroundColor: Color.fromARGB(255, 79, 128, 189),
-                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  ),
-                ),
-                SizedBox(width: 10), // Add some spacing between the buttons
-                ElevatedButton.icon(
-                  onPressed: _isLoading
-                      ? null
-                      : () {
-                          _uploadTransaction();
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => HomePage(key: Key('value')),
+      child: Card(
+        semanticContainer: true,
+        borderOnForeground: true,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(15),
+        ),
+        elevation: 4,
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              buildReadOnlyTextField(
+                  'Transacting Party', detail.transactingParty),
+              SizedBox(height: 20),
+              buildTable(detail),
+              SizedBox(height: 20),
+              Center(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    TextButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => UserAddAttachment(
+                              transaction: detail,
+                              selectedDetails: [],
                             ),
-                          );
-                        },
-                  icon: Icon(Icons.send),
-                  label: Text('Send'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Color.fromARGB(255, 79, 129, 189),
-                  ),
+                          ),
+                        );
+                      },
+                      child: Text('Add Attachment'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        backgroundColor: Color.fromARGB(255, 79, 128, 189),
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      ),
+                    ),
+                    SizedBox(width: 10), // Add some spacing between the buttons
+                    ElevatedButton.icon(
+                      onPressed: _isLoading
+                          ? null
+                          : () {
+                              _uploadTransaction();
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      HomePage(key: Key('value')),
+                                ),
+                              );
+                            },
+                      icon: Icon(Icons.send),
+                      label: Text('Send'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Color.fromARGB(255, 79, 129, 189),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
-    ),
-  ),
-);
+    );
   }
 
   Widget buildReadOnlyTextField(String label, String value) {
@@ -238,7 +246,7 @@ class _DisbursementDetailsScreenState extends State<DisbursementDetailsScreen> {
         buildTableRow('Check', detail.checkNumber),
         buildTableRow('Bank', detail.bankName),
         buildTableRow('Amount', formatAmount(detail.checkAmount)),
-        buildTableRow('Status', detail.transactionStatusWord), 
+        buildTableRow('Status', detail.transactionStatusWord),
         buildTableRow('Remarks', detail.remarks),
       ],
     );
@@ -267,7 +275,6 @@ class _DisbursementDetailsScreenState extends State<DisbursementDetailsScreen> {
       ),
     );
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -333,7 +340,7 @@ class _DisbursementDetailsScreenState extends State<DisbursementDetailsScreen> {
         ),
       ),
       body: Padding(
-       padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(16.0),
         child: SingleChildScrollView(
           child: Column(
             children: [
@@ -341,7 +348,7 @@ class _DisbursementDetailsScreenState extends State<DisbursementDetailsScreen> {
             ],
           ),
         ),
-      ), 
+      ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
         selectedItemColor: Color.fromARGB(255, 79, 128, 189),

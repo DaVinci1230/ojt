@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:ojt/screens_user/no_support.dart';
+import '/screens_user/no_support.dart';
 import 'package:http/http.dart' as http;
 
 import '../admin_screens/notifications.dart';
@@ -88,7 +88,7 @@ class _NoSupportDetailsState extends State<NoSupportDetails> {
 
     try {
       var uri = Uri.parse(
-          'http://127.0.0.1/localconnect/UserUploadUpdate/update_ops_und.php');
+          'http://192.168.131.94/localconnect/UserUploadUpdate/update_ops_und.php');
       var request = http.Request('POST', uri);
 
       // URL-encode the values

@@ -5,7 +5,7 @@ import 'dart:developer' as developer;
 import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:ojt/screens_user/uploader_hompage.dart';
+import '/screens_user/uploader_hompage.dart';
 import '../admin_screens/notifications.dart';
 import '../models/user_transaction.dart';
 import '../screens_user/user_menu.dart';
@@ -101,7 +101,7 @@ class _UserSendAttachmentState extends State<UserSendAttachment> {
 
       try {
         var uri = Uri.parse(
-            'http://127.0.0.1/localconnect/UserUploadUpdate/update_u.php');
+            'http://192.168.131.94/localconnect/UserUploadUpdate/update_u.php');
 
         for (var attachment in widget.attachments.toList()) {
           if (attachment['name'] != null &&

@@ -17,6 +17,7 @@ class _TransmitterHistoryState extends State<TransmitterHistory> {
   String selectedFilter = 'All';
   DateTime? startDate;
   DateTime? endDate;
+  bool isOldestFirst = false;
 
   @override
   void initState() {
@@ -25,6 +26,7 @@ class _TransmitterHistoryState extends State<TransmitterHistory> {
     startDate = DateTime(now.year, now.month, 1);
     endDate = now;
     _loadTransactions();
+     isOldestFirst = false;
   }
 
   Future<void> _loadTransactions() async {
@@ -33,7 +35,7 @@ class _TransmitterHistoryState extends State<TransmitterHistory> {
       setState(() {});
 
       var url =
-          Uri.parse('http://127.0.0.1/localconnect/transmitter_history.php');
+          Uri.parse('http://192.168.131.94/localconnect/transmitter_history.php');
       var response = await http.get(url);
 
       if (response.statusCode == 200) {
@@ -48,9 +50,11 @@ class _TransmitterHistoryState extends State<TransmitterHistory> {
             transactions = fetchedTransactions
                 .where((transaction) =>
                     (transaction.transactionStatus == 'R' &&
-                        transaction.onlineProcessingStatus == 'T') ||
+                        transaction.onlineProcessingStatus == 'R') ||
                     (transaction.transactionStatus == 'R' &&
                     transaction.onlineProcessingStatus == 'TND') ||
+                    (transaction.transactionStatus == 'R' &&
+                    transaction.onlineProcessingStatus == 'T') ||
                     transaction.transactionStatus == 'N' 
                     || transaction.transactionStatus == 'A'
                     ) 
@@ -77,7 +81,7 @@ class _TransmitterHistoryState extends State<TransmitterHistory> {
     }
   }
 
-  Future<void> _selectStartDate(BuildContext context) async {
+Future<void> _selectStartDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: startDate ?? DateTime.now(),
@@ -92,7 +96,7 @@ class _TransmitterHistoryState extends State<TransmitterHistory> {
     }
   }
 
-  Future<void> _selectEndDate(BuildContext context) async {
+ Future<void> _selectEndDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: endDate ?? DateTime.now(),
@@ -107,15 +111,16 @@ class _TransmitterHistoryState extends State<TransmitterHistory> {
     }
   }
 
-  @override
+ @override
   Widget build(BuildContext context) {
+    final screenSize = MediaQuery.of(context).size;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Transaction History'),
       ),
       body: Column(
         children: [
-          _buildFilterButton(),
+          _buildFilterButton(screenSize),
           _buildDateRangePicker(context),
           Expanded(
             child: _buildTransactionList(),
@@ -125,41 +130,62 @@ class _TransmitterHistoryState extends State<TransmitterHistory> {
     );
   }
 
-  Widget _buildFilterButton() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.end,
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(15),
-          child: Row(
-            children: [
-              DropdownButton<String>(
-                value: selectedFilter,
-                dropdownColor: Color.fromARGB(255, 235, 238, 240),
-                onChanged: (String? newValue) {
-                  setState(() {
-                    selectedFilter = newValue!;
-                  });
-                  _loadTransactions(); // Reload transactions after filter change
-                },
-                items: <String>['All', 'Approved', 'Rejected', 'Returned', 'On process']
-                    .map<DropdownMenuItem<String>>((String value) {
-                  return DropdownMenuItem<String>(
-                    value: value,
-                    child: Text(value),
-                  );
-                }).toList(),
+ Widget _buildFilterButton(Size screenSize) {
+    return Padding(
+      padding: EdgeInsets.all(screenSize.width * 0.03),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          ElevatedButton(
+            onPressed: () {
+              setState(() {
+                isOldestFirst = !isOldestFirst;
+              });
+              _loadTransactions();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color.fromARGB(255, 79, 129, 189),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(screenSize.width * 0.02),
               ),
-              const SizedBox(
-                width: 15,
-              )
-            ],
+              padding: EdgeInsets.symmetric(
+                horizontal: screenSize.width * 0.05,
+                vertical: screenSize.height * 0.02,
+              ),
+            ),
+            child: Text(
+              isOldestFirst ? 'Oldest First' : 'Newest First',
+              style: TextStyle(
+                fontSize: screenSize.width * 0.03,
+                // fontWeight: FontWeight.bold,
+                color: Colors.black,
+              ),
+            ),
           ),
-        ),
-      ],
+          DropdownButton<String>(
+            value: selectedFilter,
+            dropdownColor: Color.fromARGB(255, 79, 129, 189),
+            onChanged: (String? newValue) {
+              setState(() {
+                selectedFilter = newValue!;
+              });
+              _loadTransactions();
+            },
+            items: <String>['All', 'Approved', 'Rejected', 'Returned','On Process']
+                .map<DropdownMenuItem<String>>((String value) {
+              return DropdownMenuItem<String>(
+                value: value,
+                child: Text(
+                  value,
+                  style: TextStyle(fontSize: screenSize.width * 0.03),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
     );
   }
-
   Widget _buildDateRangePicker(BuildContext context) {
     final DateFormat formatter = DateFormat('MMMM d, y');
     return Padding(
@@ -173,7 +199,7 @@ class _TransmitterHistoryState extends State<TransmitterHistory> {
               _selectStartDate(context);
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue,
+              backgroundColor: const Color.fromARGB(255, 79, 128, 198),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(5),
               ),
@@ -196,7 +222,7 @@ class _TransmitterHistoryState extends State<TransmitterHistory> {
               _selectEndDate(context);
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue,
+              backgroundColor: Color.fromARGB(255, 79, 129, 189),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(5),
               ),
@@ -225,11 +251,11 @@ class _TransmitterHistoryState extends State<TransmitterHistory> {
           case 'Rejected':
             return transaction.transactionStatus == 'N';
           case 'Returned':
-            return transaction.transactionStatus == 'R' && transaction.onlineTransactionStatus == 'R';
-          case 'On process':
-          return transaction.transactionStatus == 'R' && transaction.onlineProcessingStatus == 'TND';
+            return transaction.transactionStatus == 'R' && transaction.onlineProcessingStatus == 'R';
+          case 'On Process':
+          return transaction.onlineProcessingStatus == 'TND' || transaction.onlineProcessingStatus == 'T';
           default:
-            return true;
+            return true;  
         }
       }).toList();
     }

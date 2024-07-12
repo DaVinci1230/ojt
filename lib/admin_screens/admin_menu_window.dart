@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:ojt/loginScreen.dart';
+import '/loginScreen.dart';
 import 'disbursement_check.dart';
 import 'notifications.dart';
 import 'Admin_Homepage.dart';
@@ -59,7 +59,7 @@ class _MenuState extends State<AdminMenuWindow> {
             Row(
               children: [
                 Image.asset(
-                  'logo.png',
+                  'assets/logo.png',
                   width: screenSize.width * 0.15, 
                   height: screenSize.height * 0.1,
                 ),

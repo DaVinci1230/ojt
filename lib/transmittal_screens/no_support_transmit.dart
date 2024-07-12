@@ -4,15 +4,15 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:intl/intl.dart';
 
-import 'package:ojt/transmittal_screens/transmitter_menu.dart';
-import 'package:scrollable_table_view/scrollable_table_view.dart';
+import '/transmittal_screens/transmitter_menu.dart';
+
 
 import '../models/user_transaction.dart';
 
+import '../widgets/table.dart';
 import 'fetching_transmital_data.dart';
 import 'no_support_details_transmit.dart';
 import 'transmitter_homepage.dart';
-
 
 class NoSupportTransmit extends StatefulWidget {
   const NoSupportTransmit({Key? key}) : super(key: key);
@@ -48,13 +48,13 @@ class _NoSupportTransmitState extends State<NoSupportTransmit> {
 
     switch (index) {
       case 0:
-       Navigator.pushReplacement(
+        Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => const TransmittalHomePage()),
         );
         break;
       case 1:
-         Navigator.pushReplacement(
+        Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => const NoSupportTransmit()),
         );
@@ -69,26 +69,26 @@ class _NoSupportTransmitState extends State<NoSupportTransmit> {
   }
 
   void _navigateToTransmitterHomePage(BuildContext context) {
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (context) => const TransmitterHomePage(key: Key('value')),
-    ),
-  );
-}
-
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const TransmitterHomePage(key: Key('value')),
+      ),
+    );
+  }
 
   Future<void> fetchTransactions() async {
     try {
       final response = await http.get(Uri.parse(
-          'http://127.0.0.1/localconnect/fetch_transaction_data.php'));
+          'http://192.168.131.94/localconnect/fetch_transaction_data.php'));
 
       if (response.statusCode == 200) {
         setState(() {
           final List<dynamic> data = json.decode(response.body);
           transactions = data
               .map((json) => Transaction.fromJson(json))
-              .where((transaction) => transaction.onlineProcessingStatus == 'ND')
+              .where(
+                  (transaction) => transaction.onlineProcessingStatus == 'ND')
               .toList();
           isLoading = false;
         });
@@ -101,6 +101,7 @@ class _NoSupportTransmitState extends State<NoSupportTransmit> {
       throw Exception('Failed to connect to server.');
     }
   }
+
   void previousPage() {
     setState(() {
       if (currentPage > 1) currentPage--;
@@ -173,7 +174,8 @@ class _NoSupportTransmitState extends State<NoSupportTransmit> {
       MaterialPageRoute(
         builder: (context) => NoSupportTransmitDetails(
           transaction: transaction,
-          selectedDetails: [], attachments: [], // Adjust based on your requirements
+          selectedDetails: [],
+          attachments: [], // Adjust based on your requirements
         ),
       ),
     );
@@ -182,78 +184,78 @@ class _NoSupportTransmitState extends State<NoSupportTransmit> {
   @override
   Widget build(BuildContext context) {
     Size screenSize = MediaQuery.of(context).size;
+    double screenHeight = screenSize.height;
+
     final screenWidth = MediaQuery.of(context).size.width;
     final paginatedTransactions = transactions
         .skip((currentPage - 1) * rowsPerPage)
         .take(rowsPerPage)
         .toList();
 
-    return Scaffold(
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        backgroundColor: Color.fromARGB(255, 79, 128, 189),
-        toolbarHeight: 77,
-        title: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Row(
-              children: [
-                 IconButton(
-                  onPressed: () => _navigateToTransmitterHomePage(context),
-                  icon: const Icon(
-                    Icons.arrow_back,
-                    size: 24,
-                    color: Color.fromARGB(255, 0, 0, 0),
-                  ),
+     return Scaffold(
+    appBar: AppBar(
+      automaticallyImplyLeading: false,
+      backgroundColor: Color.fromARGB(255, 79, 128, 189),
+      toolbarHeight: 77,
+      title: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              IconButton(
+                onPressed: () => _navigateToTransmitterHomePage(context),
+                icon: const Icon(
+                  Icons.arrow_back,
+                  size: 24,
+                  color: Color.fromARGB(255, 0, 0, 0),
                 ),
-                Image.asset(
-                  'logo.png',
-                  width: 60,
-                  height: 55,
+              ),
+              Image.asset(
+                'assets/logo.png',
+                width: 60,
+                height: 55,
+              ),
+              const SizedBox(width: 8),
+              const Text(
+                'For Transmittal\nNo Support Required',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Color.fromARGB(255, 233, 227, 227),
                 ),
-                const SizedBox(width: 8),
-                const Text(
-                  'For Transmittal No Support Required',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Color.fromARGB(255, 233, 227, 227),
-                  ),
+              ),
+            ],
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              IconButton(
+                onPressed: () {
+                  // Navigate to notification screen
+                  // Navigator.push(
+                  //   context,
+                  //   MaterialPageRoute(
+                  //       builder: (context) => NotificationScreen()),
+                  // );
+                },
+                icon: const Icon(
+                  Icons.notifications,
+                  size: 24, // Adjust size as needed
+                  color: Color.fromARGB(255, 233, 227, 227),
                 ),
-              ],
-            ),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                Container(
-                  margin: EdgeInsets.only(right: screenSize.width * 0.02),
-                  child: IconButton(
-                    onPressed: () {
-                      // Navigator.push(
-                      //   context,
-                      //   MaterialPageRoute(
-                      //       builder: (context) => NotificationScreen()),
-                      // );
-                    },
-                    icon: const Icon(
-                      Icons.notifications,
-                      size: 24, // Adjust size as needed
-                      color: Color.fromARGB(255, 233, 227, 227),
-                    ),
-                  ),
+              ),
+              IconButton(
+                onPressed: () {},
+                icon: const Icon(
+                  Icons.person,
+                  size: 24, // Adjust size as needed
+                  color: Color.fromARGB(255, 233, 227, 227),
                 ),
-                IconButton(
-                  onPressed: () {},
-                  icon: const Icon(
-                    Icons.person,
-                    size: 24, // Adjust size as needed
-                    color: Color.fromARGB(255, 233, 227, 227),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
+              ),
+            ],
+          ),
+        ],
       ),
+    ),
       body: Center(
         child: isLoading
             ? const CircularProgressIndicator()
@@ -276,68 +278,23 @@ class _NoSupportTransmitState extends State<NoSupportTransmit> {
                           child: Row(
                             children: [
                               Expanded(
-                                child: ScrollableTableView(
-                                  headers: headers.map((columnName) {
-                                    return TableViewHeader(
-                                      labelFontSize: 12,
-                                      label: columnName,
-                                      padding: const EdgeInsets.all(8),
-                                      minWidth: 150,
-                                      alignment: columnName == 'Amount'
-                                          ? Alignment.centerRight
-                                          : Alignment.center,
-                                    );
-                                  }).toList(),
-                                  rows: paginatedTransactions.map((transaction) {
-                                    return TableViewRow(
-                                      height: 55,
-                                      onTap: () {
-                                        navigateToDetails(transaction);
-                                      },
-                                      cells: [
-                                        TableViewCell(
-                                          alignment: Alignment.center,
-                                          padding: const EdgeInsets.all(8.0),
-                                          child: Text(
-                                            createDocRef(
-                                                transaction.docType,
-                                                transaction.docNo,
-                                                transaction.transDate),
-                                            softWrap: true,
-                                          ),
-                                        ),
-                                        TableViewCell(
-                                          padding: const EdgeInsets.all(8.0),
-                                          alignment: Alignment.centerLeft,
-                                          child: Text(
-                                            transaction.transactingParty,
-                                            softWrap: true,
-                                          ),
-                                        ),
-                                        TableViewCell(
-                                          alignment: Alignment.centerRight,
-                                          child: Text(
-                                            formatAmount(
-                                                transaction.checkAmount),
-                                            softWrap: true,
-                                          ),
-                                        ),
-                                      ],
-                                    );
-                                  }).toList(),
+                                child: ScrollableTableViewWidget(
+                                  headers: headers,
+                                  transactions: paginatedTransactions,
+                                  onRowTap: navigateToDetails,
+                                  rows: [],
                                 ),
                               ),
                             ],
                           ),
                         ),
-                       
                       ],
                     ),
                   ),
                 ),
               ),
       ),
-       bottomNavigationBar: BottomNavigationBar(
+      bottomNavigationBar: BottomNavigationBar(
         items: const <BottomNavigationBarItem>[
           BottomNavigationBarItem(
             icon: Icon(Icons.upload_file_outlined),

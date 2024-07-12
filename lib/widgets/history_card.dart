@@ -39,7 +39,7 @@ class _TransactionsCardState extends State<TransactionsCard>
   Future<void> _fetchCheckDetails(String docNo, String docType) async {
     try {
       final response = await http.get(Uri.parse(
-          'http://127.0.0.1/localconnect/view_details.php?doc_no=$docNo&doc_type=$docType'));
+          'http://192.168.131.94/localconnect/view_details.php?doc_no=$docNo&doc_type=$docType'));
 
       if (response.statusCode == 200) {
         List<dynamic> data = json.decode(response.body);
@@ -65,7 +65,7 @@ class _TransactionsCardState extends State<TransactionsCard>
   Future<void> _fetchFileNameAndPath() async {
     try {
       final response = await http.get(Uri.parse(
-          'http://127.0.0.1/localconnect/get_file.php?doc_no=${widget.transaction.docNo}&doc_type=${widget.transaction.docType}'));
+          'http://192.168.131.94/localconnect/get_file.php?doc_no=${widget.transaction.docNo}&doc_type=${widget.transaction.docType}'));
 
       if (response.statusCode == 200) {
         Map<String, dynamic> data = json.decode(response.body);
@@ -447,13 +447,14 @@ class _TransactionsCardState extends State<TransactionsCard>
                     SizedBox(width: screenWidth * 0.02),
                     Expanded(
                       child: Container(
+                        width: screenWidth * 0.2,
                         color: Color.fromARGB(255, 227, 232, 235),
                         padding: EdgeInsets.all(screenHeight * 0.006),
                         child: Center(
                           child: Text(
                             widget.transaction.convertTransactionStatus,
                             style: TextStyle(
-                              fontSize: screenHeight * 0.014,
+                              fontSize: screenHeight * 0.012,
                               color: Color.fromARGB(255, 0, 0, 0),
                             ),
                             overflow: TextOverflow.ellipsis,

@@ -4,8 +4,8 @@ import 'package:http/http.dart' as http;
 import 'disbursement_check.dart';
 import 'admin_menu_window.dart';
 import 'notifications.dart';
-import 'package:ojt/widgets/card.dart';
-import 'package:ojt/models/admin_transaction.dart';
+import '/widgets/card.dart';
+import '/models/admin_transaction.dart';
 import 'package:intl/intl.dart';
 
 class AdminHomePage extends StatefulWidget {
@@ -30,7 +30,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
 
   Future<List<Transaction>> _fetchTransactionDetails() async {
     try {
-      var url = Uri.parse('http://127.0.0.1/localconnect/get_transaction.php');
+      var url = Uri.parse('http://192.168.131.94/localconnect/get_transaction.php');
       var response = await http.get(url);
 
       if (response.statusCode == 200) {
@@ -87,7 +87,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
     try {
       for (Transaction transaction in transactions) {
         final response = await http.post(
-          Uri.parse('http://127.0.0.1/localconnect/approve.php'),
+          Uri.parse('http://192.168.131.94/localconnect/approve.php'),
           body: {
             'doc_no': transaction.docNo,
             'doc_type': transaction.docType,
@@ -124,7 +124,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
     try {
       for (Transaction transaction in transactions) {
         final response = await http.post(
-          Uri.parse('http://127.0.0.1/localconnect/reject.php'),
+          Uri.parse('http://192.168.131.94/localconnect/reject.php'),
           body: {
             'doc_no': transaction.docNo,
             'doc_type': transaction.docType,
@@ -242,7 +242,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
             Row(
               children: [
                 Image.asset(
-                  'logo.png',
+                  'assets/logo.png',
                   width: 60,
                   height: 55,
                 ),
@@ -277,7 +277,13 @@ class _AdminHomePageState extends State<AdminHomePage> {
                   ),
                 ),
                 IconButton(
-                  onPressed: () {},
+                  onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (context) => const AdminMenuWindow()),
+                );
+                  },
                   icon: const Icon(
                     Icons.person,
                     size: 24, // Adjust size as needed
@@ -317,7 +323,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(21.0),
                 child: Container(
-                  color: Colors.blue,
+                  color: const Color.fromARGB(255, 79, 129, 189),
                   padding:
                       const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
                   height: 208,

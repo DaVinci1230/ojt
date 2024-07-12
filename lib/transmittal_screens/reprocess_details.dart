@@ -2,12 +2,13 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:ojt/transmittal_screens/transmitter_add_attachment.dart';
 import '../admin_screens/notifications.dart';
 import '../models/user_transaction.dart';
 import 'package:http/http.dart' as http;
+import 'fetch_reprocessing.dart';
+import 'rep_add_attachments.dart';
 import 'reprocess_view_previous_attachments.dart';
-
+import 'reprocessing_menu.dart';
 
 class ReprocessDetails extends StatefulWidget {
   final Transaction transaction;
@@ -20,7 +21,8 @@ class ReprocessDetails extends StatefulWidget {
   }) : super(key: key);
 
   @override
-  _TransmitterSendAttachmentState createState() => _TransmitterSendAttachmentState();
+  _TransmitterSendAttachmentState createState() =>
+      _TransmitterSendAttachmentState();
 }
 
 String createDocRef(String docType, String docNo) {
@@ -29,7 +31,7 @@ String createDocRef(String docType, String docNo) {
 
 class _TransmitterSendAttachmentState extends State<ReprocessDetails> {
   int _selectedIndex = 0;
-
+  bool _isLoading = false;
 
   @override
   void initState() {
@@ -59,148 +61,159 @@ class _TransmitterSendAttachmentState extends State<ReprocessDetails> {
 
     switch (index) {
       case 0:
-        // Navigator.pushReplacement(
-        //   context,
-        //   MaterialPageRoute(builder: (context) => const TransmitterHomePage()),
-        // );
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const FetchReprocess()),
+        );
         break;
       case 1:
-        // Navigator.pushReplacement(
-        //   context,
-        //   MaterialPageRoute(builder: (context) => const NoSupportTransmit()),
-        // );
-        break;
-      case 2:
-        // Navigator.pushReplacement(
-        //   context,
-        //   MaterialPageRoute(builder: (context) => const UploaderMenuWindow()),
-        // );
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const ReprocessMenuWindow()),
+        );
         break;
     }
   }
-  Future<void> _uploadTransaction() async {
-  setState(() {
-   
-  });
 
-  try {
-    var uri = Uri.parse('http://127.0.0.1/localconnect/UserUploadUpdate/transmitter_ops_und.php');
-    var request = http.Request('POST', uri);
+Future<void> _uploadTransaction() async {
+    setState(() {});
 
-    // URL-encode the values
-    var requestBody = 'doc_type=${Uri.encodeComponent(widget.transaction!.docType)}&doc_no=${Uri.encodeComponent(widget.transaction!.docNo)}&date_trans=${Uri.encodeComponent(widget.transaction!.dateTrans)}';
+    try {
+      var uri =
+          Uri.parse('http://192.168.68.122/localconnect/transmit_sendAgain.php');
+      var request = http.Request('POST', uri);
 
-    request.headers['Content-Type'] = 'application/x-www-form-urlencoded';
-    request.body = requestBody;
+      var requestBody =
+          'doc_type=${Uri.encodeComponent(widget.transaction!.docType)}&doc_no=${Uri.encodeComponent(widget.transaction!.docNo)}';
 
-    var response = await request.send();
+      request.headers['Content-Type'] = 'application/x-www-form-urlencoded';
+      request.body = requestBody;
 
-    if (response.statusCode == 200) {
-      var responseBody = await response.stream.bytesToString();
-      var result = jsonDecode(responseBody);
+      var response = await request.send();
 
-      if (result['status'] == 'Success') {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(result['message'])),
-        );
+      if (response.statusCode == 200) {
+        var responseBody = await response.stream.bytesToString();
+        var result = jsonDecode(responseBody);
 
-        // Navigate back to previous screen (DisbursementDetailsScreen)
-        Navigator.pop(context);
+        if (result['status'] == 'Success') {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(result['message'])),
+          );
+          Navigator.pop(context);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(result['message'])),
+          );
+        }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(result['message'])),
+          SnackBar(
+              content: Text(
+                  'Transaction upload failed with status: ${response.statusCode}')),
         );
       }
-    } else {
+    } catch (e) {
+      print('Error uploading transaction: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-            content: Text(
-                'Transaction upload failed with status: ${response.statusCode}')),
+            content:
+                Text('Transaction sent!')),
       );
+    } finally {
+      setState(() {});
     }
-  } catch (e) {
-    print('Error uploading transaction: $e');
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-          content: Text('Error uploading transaction. Please try again later.')),
-    );
-  } finally {
-    setState(() {
-    });
   }
-}
-
-  Widget buildDetailsCard(Transaction detail) {
-    return Container(
-  child: Card(
-    semanticContainer: true,
-    borderOnForeground: true,
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(15),
-    ),
-    elevation: 4,
-    child: Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          buildReadOnlyTextField('Transacting Party', detail.transactingParty),
-          SizedBox(height: 20),
-          buildTable(detail),
-          SizedBox(height: 20),
-          Center(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => ReprocessPreviousAttachments(
-                          docType: widget.transaction.docType,
-                        docNo: widget.transaction.docNo,
+Widget buildDetailsCard(Transaction detail) {
+  return Container(
+    child: Card(
+      semanticContainer: true,
+      borderOnForeground: true,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(15),
+      ),
+      elevation: 4,
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            buildReadOnlyTextField('Transacting Party', detail.transactingParty),
+            SizedBox(height: 20),
+            buildTable(detail),
+            SizedBox(height: 20),
+            Center(
+              child: Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                alignment: WrapAlignment.center,
+                children: [
+                  TextButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ReprocessPreviousAttachments(
+                            docType: widget.transaction.docType,
+                            docNo: widget.transaction.docNo,
+                          ),
                         ),
-                      ),
-                    );
-                  },
-                  child: Text('Previous Attachment'),
-                  style: TextButton.styleFrom(
-                    foregroundColor: Colors.white,
-                    backgroundColor: Color.fromARGB(255, 79, 128, 189),
-                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      );
+                    },
+                    child: Text('Previous Attachment'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      backgroundColor: Color.fromARGB(255, 79, 128, 189),
+                      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    ),
                   ),
-                ),
-                SizedBox(width: 10),
-                TextButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => TransmitterAddAttachment(
-                          transaction: detail,
-                          selectedDetails: [],
+                  TextButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => RepAddAttachments(
+                            transaction: detail,
+                            selectedDetails: [],
+                          ),
                         ),
-                      ),
-                    );
-                  },
-                  child: Text('Add Attachment'),
-                  style: TextButton.styleFrom(
-                    foregroundColor: Colors.white,
-                    backgroundColor: Color.fromARGB(255, 79, 128, 189),
-                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      );
+                    },
+                    child: Text('Add Attachment'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      backgroundColor: Color.fromARGB(255, 79, 128, 189),
+                      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    ),
                   ),
-                ),
-               
-              ],
+                  TextButton(
+                    onPressed: _isLoading
+                        ? null
+                        : () {
+                            _uploadTransaction();
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => FetchReprocess(key: Key('value')),
+                              ),
+                            );
+                          },
+                    child: Text('Send again'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      backgroundColor: Color.fromARGB(255, 79, 128, 189),
+                      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     ),
-  ),
-);
-  }
+  );
+}
+
 
   Widget buildReadOnlyTextField(String label, String value) {
     return TextFormField(
@@ -225,7 +238,6 @@ class _TransmitterSendAttachmentState extends State<ReprocessDetails> {
       },
       border: TableBorder.all(
         width: 1.0,
-
         color: Colors.black,
       ),
       children: [
@@ -235,7 +247,7 @@ class _TransmitterSendAttachmentState extends State<ReprocessDetails> {
         buildTableRow('Check', detail.checkNumber),
         buildTableRow('Bank', detail.bankName),
         buildTableRow('Amount', formatAmount(detail.checkAmount)),
-        buildTableRow('Status', detail.transactionStatusWord), 
+        buildTableRow('Status', detail.transactionStatusWord),
         buildTableRow('Remarks', detail.approverRemarks),
       ],
     );
@@ -265,10 +277,11 @@ class _TransmitterSendAttachmentState extends State<ReprocessDetails> {
     );
   }
 
-
   @override
-  Widget build(BuildContext context) {
-    Size screenSize = MediaQuery.of(context).size;
+  Widget build(BuildContext context) {  
+     Size screenSize = MediaQuery.of(context).size;
+    double screenHeight = screenSize.height;
+
 
     return Scaffold(
       appBar: AppBar(
@@ -280,7 +293,7 @@ class _TransmitterSendAttachmentState extends State<ReprocessDetails> {
             Row(
               children: [
                 Image.asset(
-                  'logo.png',
+                  'assets/logo.png',
                   width: 60,
                   height: 55,
                 ),
@@ -330,7 +343,7 @@ class _TransmitterSendAttachmentState extends State<ReprocessDetails> {
         ),
       ),
       body: Padding(
-       padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(16.0),
         child: SingleChildScrollView(
           child: Column(
             children: [
@@ -338,7 +351,7 @@ class _TransmitterSendAttachmentState extends State<ReprocessDetails> {
             ],
           ),
         ),
-      ), 
+      ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
         selectedItemColor: Color.fromARGB(255, 79, 128, 189),
@@ -348,10 +361,7 @@ class _TransmitterSendAttachmentState extends State<ReprocessDetails> {
             icon: Icon(Icons.upload_file_outlined),
             label: 'Upload',
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.quiz),
-            label: 'No Support',
-          ),
+          
           BottomNavigationBarItem(
             icon: Icon(Icons.menu_sharp),
             label: 'Menu',

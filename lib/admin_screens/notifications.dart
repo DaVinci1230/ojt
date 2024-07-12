@@ -7,7 +7,7 @@ class NotificationScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Color.fromARGB(255, 9, 41, 145),
+        backgroundColor: Color.fromARGB(255, 78, 128, 189),
         toolbarHeight: 77,
         title: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,

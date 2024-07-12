@@ -95,7 +95,7 @@ class _ReviewDataState extends State<ReviewData> {
   });
 
   try {
-    var uri = Uri.parse('http://127.0.0.1/localconnect/UserUploadUpdate/transmitter/update_ops_t.php');
+    var uri = Uri.parse('http://192.168.131.94/localconnect/UserUploadUpdate/transmitter/update_ops_t.php');
     var request = http.Request('POST', uri);
 
     // URL-encode the values

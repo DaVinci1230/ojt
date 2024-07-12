@@ -39,7 +39,7 @@ class _MarkCardHistoryState extends State<MarkCardHistory>
   Future<void> _fetchCheckDetails(String docNo, String docType) async {
     try {
       final response = await http.get(Uri.parse(
-          'http://127.0.0.1/localconnect/view_details.php?doc_no=$docNo&doc_type=$docType'));
+          'http://192.168.131.94/localconnect/view_details.php?doc_no=$docNo&doc_type=$docType'));
 
       if (response.statusCode == 200) {
         List<dynamic> data = json.decode(response.body);
@@ -65,7 +65,7 @@ class _MarkCardHistoryState extends State<MarkCardHistory>
   Future<void> _fetchFileNameAndPath() async {
     try {
       final response = await http.get(Uri.parse(
-          'http://127.0.0.1/localconnect/get_file.php?doc_no=${widget.transaction.docNo}&doc_type=${widget.transaction.docType}'));
+          'http://192.168.131.94/localconnect/get_file.php?doc_no=${widget.transaction.docNo}&doc_type=${widget.transaction.docType}'));
 
       if (response.statusCode == 200) {
         Map<String, dynamic> data = json.decode(response.body);

@@ -2,17 +2,15 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:intl/intl.dart';
-
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:developer' as developer;
-
 import '../admin_screens/notifications.dart';
 import '../models/user_transaction.dart';
 import '../transmittal_screens/transmitter_homepage.dart';
 import 'fetching_uploader_data.dart';
-import 'transmitterSecondAttachment.dart';
+import 'transmitter_add_attachment.dart';
 import 'uploader_menu.dart';
 import 'uploader_viewfiles.dart'; // Import your TransmitView widget here
 import 'no_support_transmit.dart';
@@ -103,7 +101,7 @@ class _TransmitterSendAttachmentState extends State<TransmitterSendAttachment> {
 
     try {
       var uri = Uri.parse(
-          'http://127.0.0.1/localconnect/UserUploadUpdate/update_u.php');
+          'http://192.168.131.94/localconnect/UserUploadUpdate/update_u.php');
 
       // Process attachments
       for (var attachment in widget.attachments.toList()) {
@@ -294,7 +292,7 @@ class _TransmitterSendAttachmentState extends State<TransmitterSendAttachment> {
 
   Widget buildDetailsCard(Transaction detail) {
     return Container(
-      height: 450,
+      height: 420,
       child: Card(
         semanticContainer: true,
         borderOnForeground: true,
@@ -311,7 +309,7 @@ class _TransmitterSendAttachmentState extends State<TransmitterSendAttachment> {
                   'Transacting Party', detail.transactingParty),
               SizedBox(height: 20),
               buildTable(detail),
-              SizedBox(height: 20),
+              SizedBox(height: 15),
             
             ],
           ),
@@ -387,6 +385,7 @@ class _TransmitterSendAttachmentState extends State<TransmitterSendAttachment> {
 
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         backgroundColor: Color.fromARGB(255, 79, 128, 189),
         toolbarHeight: 77,
         title: Row(
@@ -394,6 +393,24 @@ class _TransmitterSendAttachmentState extends State<TransmitterSendAttachment> {
           children: [
             Row(
               children: [
+                  IconButton(
+            onPressed: () {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => TransmitterAddAttachment(
+                    transaction: widget.transaction,
+                    selectedDetails: [],
+                  ),
+                ),
+              );
+            },
+            icon: const Icon(
+              Icons.arrow_back,
+              size: 24,
+              color: Color.fromARGB(255, 0, 0, 0),
+            ),
+          ),
                 Image.asset(
                   'logo.png',
                   width: 60,

@@ -2,10 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:intl/intl.dart';
-import 'package:scrollable_table_view/scrollable_table_view.dart';
 import '../models/user_transaction.dart';
+import '../widgets/table.dart';
 import 'reprocess_details.dart';
-import 'reprocess_no_support.dart';
 import 'reprocessing_menu.dart';
 import 'transmitter_homepage.dart';
 
@@ -51,12 +50,6 @@ class _FetchReprocessState extends State<FetchReprocess> {
       case 1:
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const FetchReprocessNoSupport()),
-        );
-        break;
-      case 2:
-        Navigator.pushReplacement(
-          context,
           MaterialPageRoute(builder: (context) => const ReprocessMenuWindow()),
         );
         break;
@@ -75,7 +68,7 @@ class _FetchReprocessState extends State<FetchReprocess> {
   Future<void> fetchTransactions() async {
     try {
       final response = await http.get(Uri.parse(
-          'http://127.0.0.1/localconnect/fetch_transaction_data.php'));
+          'http://192.168.131.94/localconnect/fetch_transaction_data.php'));
 
       if (response.statusCode == 200) {
         setState(() {
@@ -280,57 +273,11 @@ class _FetchReprocessState extends State<FetchReprocess> {
                           child: Row(
                             children: [
                               Expanded(
-                                child: ScrollableTableView(
-                                  headers: headers.map((columnName) {
-                                    return TableViewHeader(
-                                      labelFontSize: screenWidth *
-                                          0.03, // Adjust font size relative to screen width
-                                      label: columnName,
-                                      padding: const EdgeInsets.all(8),
-                                      minWidth: 150,
-                                      alignment: columnName == 'Amount'
-                                          ? Alignment.centerRight
-                                          : Alignment.center,
-                                    );
-                                  }).toList(),
-                                  rows:
-                                      paginatedTransactions.map((transaction) {
-                                    return TableViewRow(
-                                      height: 55,
-                                      onTap: () {
-                                        navigateToDetails(transaction);
-                                      },
-                                      cells: [
-                                        TableViewCell(
-                                          alignment: Alignment.center,
-                                          padding: const EdgeInsets.all(8.0),
-                                          child: Text(
-                                            createDocRef(
-                                                transaction.docType,
-                                                transaction.docNo,
-                                                transaction.transDate),
-                                            softWrap: true,
-                                          ),
-                                        ),
-                                        TableViewCell(
-                                          padding: const EdgeInsets.all(8.0),
-                                          alignment: Alignment.centerLeft,
-                                          child: Text(
-                                            transaction.transactingParty,
-                                            softWrap: true,
-                                          ),
-                                        ),
-                                        TableViewCell(
-                                          alignment: Alignment.centerRight,
-                                          child: Text(
-                                            formatAmount(
-                                                transaction.checkAmount),
-                                            softWrap: true,
-                                          ),
-                                        ),
-                                      ],
-                                    );
-                                  }).toList(),
+                                child: ScrollableTableViewWidget(
+                                  headers: headers,
+                                  transactions: paginatedTransactions,
+                                  onRowTap: navigateToDetails,
+                                  rows: [],
                                 ),
                               ),
                             ],
@@ -350,10 +297,6 @@ class _FetchReprocessState extends State<FetchReprocess> {
           BottomNavigationBarItem(
             icon: Icon(Icons.upload_file_outlined),
             label: 'Upload',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.quiz),
-            label: 'No Support',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.menu_sharp),

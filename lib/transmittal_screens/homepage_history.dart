@@ -33,7 +33,7 @@ class _HomepageHistoryState extends State<HomepageHistory> {
       setState(() {});
 
       var url =
-          Uri.parse('http://127.0.0.1/localconnect/transmitter_history.php');
+          Uri.parse('http://192.168.131.94/localconnect/transmitter_history.php');
       var response = await http.get(url);
 
       if (response.statusCode == 200) {

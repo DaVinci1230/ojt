@@ -8,7 +8,6 @@ import '../admin_screens/notifications.dart';
 import '../models/user_transaction.dart';
 import 'fetching_uploader_data.dart';
 import 'no_support_uploader.dart';
-import 'transmitter_homepage.dart';
 import 'uploader_menu.dart';
 
 
@@ -88,7 +87,7 @@ class _UploaderNoSupportDetailsState extends State<UploaderNoSupportDetails> {
   });
 
   try {
-    var uri = Uri.parse('http://127.0.0.1/localconnect/UserUploadUpdate/update_ops_und.php');
+    var uri = Uri.parse('http://192.168.131.94/localconnect/UserUploadUpdate/update_ops_und.php');
     var request = http.Request('POST', uri);
 
     // URL-encode the values

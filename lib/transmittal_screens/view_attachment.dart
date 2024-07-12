@@ -37,7 +37,7 @@ Future<String>_loadAsset(String path) async{
   Future<List<Attachment>> _fetchAttachments() async {
     try {
       var url = Uri.parse(
-          'http://127.0.0.1/localconnect/view_attachment.php?doc_type=${widget.docType}&doc_no=${widget.docNo}');
+          'http://192.168.131.94/localconnect/view_attachment.php?doc_type=${widget.docType}&doc_no=${widget.docNo}');
       var response = await http.get(url);
 
       if (response.statusCode == 200) {
@@ -151,7 +151,7 @@ Future<String>_loadAsset(String path) async{
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Color.fromARGB(255, 9, 41, 145),
+        backgroundColor: Color.fromARGB(255, 78, 128, 189),
         toolbarHeight: 77,
         title: Text(
           'Attachments',
