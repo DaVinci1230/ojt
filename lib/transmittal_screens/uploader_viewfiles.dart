@@ -1,12 +1,11 @@
 import 'dart:convert';
-
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'dart:developer' as developer;
-import '../admin_screens/notifications.dart';
 
 class TransmitView extends StatefulWidget {
-  final List<Map<String, String>> attachments;
+  final List<Map<String, dynamic>> attachments;
   final Function(int index) onDelete;
 
   const TransmitView({
@@ -20,13 +19,12 @@ class TransmitView extends StatefulWidget {
 }
 
 class _TransmitViewState extends State<TransmitView> {
-  List<Map<String, String>> _attachments = [];
+  List<Map<String, dynamic>> _attachments = [];
 
   @override
   void initState() {
     super.initState();
     _attachments = List.from(widget.attachments);
-    developer.log('TransmitView initialized with ${_attachments.length} attachments');
   }
 
   void _removeAttachment(int index) {
@@ -34,17 +32,52 @@ class _TransmitViewState extends State<TransmitView> {
       _attachments.removeAt(index);
     });
     widget.onDelete(index); // Call the callback function
-    developer.log('Attachment removed at index $index');
   }
 
-  Future<String> _loadAsset(String path) async {
-    return await rootBundle.loadString(path);
+  void _showImagePreview(int index) async {
+    final attachment = _attachments[index];
+    final path = attachment['path'];
+    final name = attachment['name'];
+    final filePath = '/data/user/0/com.example.leadsolutions/cache/$name';
+    if (filePath != null) {
+      final file = File(filePath);
+      if (await file.exists()) {
+        final imageData = await file.readAsBytes();
+        showDialog(
+          context: context,
+          builder: (context) {
+            return AlertDialog(
+              title: Text('Image Preview'),
+              content: Image.memory(imageData),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
+                  child: Text('Close'),
+                ),
+              ],
+            );
+          },
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('File not found: $filePath'),
+          ),
+        );
+      }
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('File path is null'),
+        ),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    Size screenSize = MediaQuery.of(context).size;
-    developer.log('Building TransmitView with ${_attachments.length} attachments');
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Color.fromARGB(255, 79, 128, 189),
@@ -55,7 +88,7 @@ class _TransmitViewState extends State<TransmitView> {
             Row(
               children: [
                 Image.asset(
-                  'logo.png',
+                  'assets/logo.png',
                   width: 60,
                   height: 55,
                 ),
@@ -74,14 +107,11 @@ class _TransmitViewState extends State<TransmitView> {
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 Container(
-                  margin: EdgeInsets.only(right: screenSize.width * 0.02),
+                  margin: EdgeInsets.only(
+                      right: MediaQuery.of(context).size.width * 0.02),
                   child: IconButton(
                     onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (context) => NotificationScreen()),
-                      );
+                      // Handle notifications
                     },
                     icon: const Icon(
                       Icons.notifications,
@@ -103,19 +133,17 @@ class _TransmitViewState extends State<TransmitView> {
           ],
         ),
       ),
-      
       body: ListView.builder(
         itemCount: _attachments.length,
         itemBuilder: (context, index) {
           final attachment = _attachments[index];
-          developer.log('Building attachment item at index $index');
+          final filePath = attachment['path'];
+          final fileName = attachment['name'];
+
           return Dismissible(
-            key: Key(attachment['name']!),
+            key: Key(fileName ?? 'attachment_$index'),
             onDismissed: (direction) {
               _removeAttachment(index);
-              // Handle the removal of the attachment
-              // e.g., remove from the database or file system
-              developer.log('Attachment dismissed at index $index');
             },
             background: Container(
               color: Colors.red,
@@ -145,37 +173,29 @@ class _TransmitViewState extends State<TransmitView> {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.attach_file),
+                  if (filePath != null && File(filePath).existsSync())
+                    Image.file(
+                      File(filePath),
+                      width: 100,
+                      height: 100,
+                      fit: BoxFit.cover,
+                    )
+                  else
+                    Icon(Icons.image_not_supported),
                   SizedBox(width: 10),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Image.asset(
-                          'assets/${attachment['name']!}',
-                        ),
-                        Text(attachment['status']!),
+                        Text(fileName ?? 'No Name'),
+                        Text(attachment['status'] ?? 'Unknown status'),
                       ],
                     ),
                   ),
-                  if (attachment['status'] == 'Uploaded')
-                    GestureDetector(
-                      onTap: () async {
-                        final imagePath = attachment['path'];
-                        final imageData = await _loadAsset(imagePath!);
-                        developer.log('Showing image preview for ${attachment['name']}');
-                        showDialog(
-                          context: context,
-                          builder: (context) {
-                            return AlertDialog(
-                              title: Text('Image'),
-                              content: Image.memory(base64Decode(imageData)),
-                            );
-                          },
-                        );
-                      },
-                      child: const Icon(Icons.remove_red_eye),
-                    ),
+                  IconButton(
+                    icon: Icon(Icons.remove_red_eye),
+                    onPressed: () => _showImagePreview(index),
+                  ),
                   IconButton(
                     icon: Icon(Icons.delete, color: Colors.red),
                     onPressed: () {

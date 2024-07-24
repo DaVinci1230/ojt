@@ -1,18 +1,30 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import '/admin_screens/approver_notification.dart';
 import '/loginScreen.dart';
+import '../models/admin_transaction.dart';
 import 'disbursement_check.dart';
-import 'notifications.dart';
 import 'Admin_Homepage.dart';
 import 'transactions_history.dart';
+import 'package:badges/badges.dart' as badges;
+import '/api_services/api_services_admin.dart';
+
 class AdminMenuWindow extends StatefulWidget {
   const AdminMenuWindow({Key? key}) : super(key: key);
-
   @override
   _MenuState createState() => _MenuState();
 }
 
-class _MenuState extends State<AdminMenuWindow> {
+class _MenuState extends State<AdminMenuWindow> { 
+  int notificationCount = 0;
   int _selectedIndex = 2;
+  final ApiServiceAdmin _apiServiceAdmin = ApiServiceAdmin();
+
+  @override
+  void initState() {
+    super.initState();
+    _countNotif();
+  }
 
   void _onItemTapped(int index) {
     if (_selectedIndex == index) return;
@@ -35,11 +47,23 @@ class _MenuState extends State<AdminMenuWindow> {
         );
         break;
       case 2:
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const AdminMenuWindow()),
-        );
         break;
+    }
+  }
+
+  Future<void> _countNotif() async {
+    try {
+      List<Transaction> transactions = await _apiServiceAdmin.fetchTransactionDetails();
+      setState(() {
+        notificationCount = transactions
+            .where((transaction) =>
+                transaction.onlineTransactionStatus == 'TND' ||
+                transaction.onlineTransactionStatus == 'T' &&
+                    transaction.notification == 'N')
+            .length;
+      });
+    } catch (e) {
+      throw Exception('Failed to fetch transaction details: $e');
     }
   }
 
@@ -60,7 +84,7 @@ class _MenuState extends State<AdminMenuWindow> {
               children: [
                 Image.asset(
                   'assets/logo.png',
-                  width: screenSize.width * 0.15, 
+                  width: screenSize.width * 0.15,
                   height: screenSize.height * 0.1,
                 ),
                 const SizedBox(width: 8),
@@ -78,18 +102,31 @@ class _MenuState extends State<AdminMenuWindow> {
               children: [
                 Container(
                   margin: EdgeInsets.only(right: screenSize.width * 0.02),
-                  child: IconButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (context) => NotificationScreen()),
-                      );
-                    },
-                    icon: const Icon(
-                      Icons.notifications,
-                      size: 24,
-                      color: Color.fromARGB(255, 233, 227, 227),
+                  child: badges.Badge(
+                    badgeContent: Text(
+                      notificationCount > 0 ? '$notificationCount' : '',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    badgeStyle: badges.BadgeStyle(
+                      badgeColor: notificationCount > 0
+                          ? Colors.red
+                          : Colors.transparent,
+                      padding: EdgeInsets.all(6),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: IconButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (context) => ApproverNotification()),
+                        );
+                      },
+                      icon: const Icon(
+                        Icons.notifications,
+                        size: 24,
+                        color: Color.fromARGB(255, 233, 227, 227),
+                      ),
                     ),
                   ),
                 ),
@@ -170,14 +207,10 @@ class _MenuState extends State<AdminMenuWindow> {
               ),
               InkWell(
                 onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => TransactionsScreen(),
-                    ),
-                  );
+                  _showFilterDialog(context);
                 },
-                child: _buildOption(screenSize, Icons.fact_check_outlined, 'History'),
+                child: _buildOption(
+                    screenSize, Icons.fact_check_outlined, 'History'),
               ),
               _buildOption(screenSize, Icons.fingerprint_rounded, 'Biometrics'),
               _buildOption(screenSize, Icons.security, 'Change Password'),
@@ -190,7 +223,8 @@ class _MenuState extends State<AdminMenuWindow> {
                     ),
                   );
                 },
-                child: _buildOption(screenSize, Icons.login_outlined, 'Log out'),
+                child:
+                    _buildOption(screenSize, Icons.login_outlined, 'Log out'),
               ),
               SizedBox(
                 height: screenSize.height * 0.15,
@@ -249,6 +283,145 @@ class _MenuState extends State<AdminMenuWindow> {
           ),
         ],
       ),
+    );
+  }
+
+  Future<void> _showFilterDialog(BuildContext context) async {
+    String selectedFilter = 'All';
+    DateTime startDate = DateTime(DateTime.now().year, DateTime.now().month, 1);
+    DateTime endDate = DateTime.now();
+    bool isOldestFirst = false;
+
+    // Calculate dialog width based on screen size
+    double dialogWidth = MediaQuery.of(context).size.width * 0.8;
+
+    await showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: Text('Set Filters'),
+              content: Container(
+                width: dialogWidth,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('Filter:'),
+                        Expanded(
+                          child: Align(
+                            alignment: Alignment.centerRight,
+                            child: DropdownButton<String>(
+                              value: selectedFilter,
+                              onChanged: (String? newValue) {
+                                setState(() {
+                                  selectedFilter = newValue!;
+                                });
+                              },
+                              items: <String>[
+                                'All',
+                                'Approved',
+                                'Rejected',
+                                'Returned'
+                              ].map<DropdownMenuItem<String>>((String value) {
+                                return DropdownMenuItem<String>(
+                                  value: value,
+                                  child: Text(value),
+                                );
+                              }).toList(),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 10),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('Start Date:'),
+                        ElevatedButton(
+                          onPressed: () async {
+                            final DateTime? picked = await showDatePicker(
+                              context: context,
+                              initialDate: startDate,
+                              firstDate: DateTime(2000),
+                              lastDate: DateTime(2101),
+                            );
+                            if (picked != null) {
+                              setState(() {
+                                startDate = picked;
+                              });
+                            }
+                          },
+                          child: Text(
+                              DateFormat('MMM dd, yyyy').format(startDate)),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 10),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('End Date:'),
+                        ElevatedButton(
+                          onPressed: () async {
+                            final DateTime? picked = await showDatePicker(
+                              context: context,
+                              initialDate: endDate,
+                              firstDate: DateTime(2000),
+                              lastDate: DateTime(2101),
+                            );
+                            if (picked != null) {
+                              setState(() {
+                                endDate = picked;
+                              });
+                            }
+                          },
+                          child:
+                              Text(DateFormat('MMM dd, yyyy').format(endDate)),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 10),
+                    CheckboxListTile(
+                      title: Text('Oldest First'),
+                      value: isOldestFirst,
+                      onChanged: (bool? newValue) {
+                        setState(() {
+                          isOldestFirst = newValue ?? false;
+                        });
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              actions: <Widget>[
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => TransactionsScreen(
+                          selectedFilter: selectedFilter,
+                          startDate: startDate,
+                          endDate: endDate,
+                          isOldestFirst: isOldestFirst,
+                        ),
+                      ),
+                    );
+                  },
+                  child: Text('Apply'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 }

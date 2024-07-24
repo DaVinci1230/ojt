@@ -2,27 +2,27 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
-import '/transmittal_screens/homepage_menu.dart';
-import '/transmittal_screens/reprocess_details.dart';
 import '../widgets/transmitter_card_notification.dart';
 import '/models/user_transaction.dart';
 import 'package:badges/badges.dart' as badges;
 import 'package:badges/badges.dart';
-import '../../api_services/transmitter_api.dart';
-import 'no_support_details_transmit.dart';
-import 'review_data.dart';
+import '../../api_services/api_services.dart';
+import 'reprocessing/rep_details.dart';
+import 'uploading/user_menu.dart';
 
-class TransmittalNotification extends StatefulWidget {
+class UploaderNotification extends StatefulWidget {
   @override
-  _TransmittalNotificationState createState() =>
-      _TransmittalNotificationState();
+  _UploaderNotificationState createState() =>
+      _UploaderNotificationState();
 }
 
-class _TransmittalNotificationState extends State<TransmittalNotification> {
+class _UploaderNotificationState extends State<UploaderNotification> {
   int notificationCount = 0;
-
+  int _reprocessingCount = 0;
+  int _transmittalCount = 0;
+  int _uploadingCount = 0;
   bool isLoading = true;
-  final TransmitterAPI _apiService = TransmitterAPI();
+  final ApiService _apiService = ApiService();
 
   List<UserTransaction> transactions = [];
 
@@ -58,10 +58,24 @@ class _TransmittalNotificationState extends State<TransmittalNotification> {
     }
   }
 
+  void updateNotificationCount(
+      int reprocessingCount, int transmittalCount, int uploadingCount) {
+    setState(() {
+      notificationCount = reprocessingCount + transmittalCount + uploadingCount;
+      _reprocessingCount = reprocessingCount;
+      _transmittalCount = transmittalCount;
+      _uploadingCount = uploadingCount;
+    });
+  }
 
-
- 
-
+  void onNewTransactionReceived() async {
+    final counts = await fetchNewNotificationCount();
+    updateNotificationCount(
+      counts['reprocessingCount']!,
+      counts['transmittalCount']!,
+      counts['uploadingCount']!,
+    );
+  }
 
   Future<void> _loadTransactions() async {
     setState(() {
@@ -76,10 +90,6 @@ class _TransmittalNotificationState extends State<TransmittalNotification> {
         setState(() {
           transactions = fetchedTransactions
               .where((transaction) =>
-                 (transaction.transactionStatus == 'R' &&
-                    transaction.onlineProcessingStatus == 'T') ||
-                (transaction.transactionStatus == 'R' &&
-                    transaction.onlineProcessingStatus == 'TND') ||
                 (transaction.transactionStatus == 'R' &&
                     transaction.onlineProcessingStatus == 'U') ||
                 (transaction.transactionStatus == 'R' &&
@@ -166,7 +176,7 @@ class _TransmittalNotificationState extends State<TransmittalNotification> {
                     Navigator.pushReplacement(
                       context,
                       MaterialPageRoute(
-                          builder: (context) => const HomepageMenuWindow()),
+                          builder: (context) => const UserMenuWindow()),
                     );
                   },
                   icon: const Icon(
@@ -206,38 +216,22 @@ class _TransmittalNotificationState extends State<TransmittalNotification> {
           return GestureDetector(
             onTap: () {
               if (transaction.onlineProcessingStatus == 'A' ||
-                  transaction.transactionStatus == 'N' || transaction.onlineProcessingStatus == 'T'||
-                  transaction.onlineProcessingStatus == 'TND') {
+                  transaction.transactionStatus == 'N' ||
+                  transaction.onlineProcessingStatus == 'T'||
+                  transaction.onlineProcessingStatus == 'TND'||
+                  transaction.onlineProcessingStatus == 'U' ||
+                  transaction.onlineProcessingStatus == 'ND'
+                  ) {
                 // Do nothing
               } else if (transaction.onlineProcessingStatus == 'R') {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => ReprocessDetails(
+                    builder: (context) => RepDetails(
                         transaction: transaction, selectedDetails: []),
                   ),
                 );
-              } else if (transaction.onlineProcessingStatus == 'U') {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => ReviewData(
-                        transaction: transaction,
-                        attachments: [],
-                        selectedDetails: []),
-                  ),
-                );
-              } else if (transaction.onlineProcessingStatus == 'ND') {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => NoSupportTransmitDetails(
-                        transaction: transaction,
-                        selectedDetails: [],
-                        attachments: []),
-                  ),
-                );
-              }
+              } 
             },
             child: NotificationCard(
               transaction: transaction,
@@ -262,28 +256,11 @@ class NotificationCard extends StatefulWidget {
 
 class _NotificationCardState extends State<NotificationCard> {
   bool showDetails = false;
-  final TransmitterAPI _apiService = TransmitterAPI();
-
-  Future<void> _removeNotification() async {
-    try {
-      await _apiService.removeNotification(
-        widget.transaction.docNo,
-        widget.transaction.docType,
-      );
-    } catch (e) {
-      print('Error removing notification: $e');
-      // Optionally show an error message or handle as needed
-    }
-  }
 
   void _toggleDetails() {
     setState(() {
       showDetails = !showDetails;
     });
-
-    if (showDetails) {
-      _removeNotification();
-    }
   }
 
   @override

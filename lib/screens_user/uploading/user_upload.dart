@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 import 'package:intl/intl.dart';
-import 'package:ojt/screens_user/uploading/no_support.dart';
-import 'package:ojt/widgets/navBar.dart';
-import 'package:ojt/widgets/table.dart';
-import 'package:scrollable_table_view/scrollable_table_view.dart';
-import '../../models/user_transaction.dart'; // Import your Transaction model
+import '../uploader_notification.dart';
+import '/widgets/navBar.dart';
+import '/widgets/table.dart';
+import '../../models/user_transaction.dart';
 import 'disbursement_details.dart';
-import 'user_menu.dart'; // Import the DisbursementDetailsScreen
-
+import 'uploader_hompage.dart';
+import 'user_menu.dart'; 
+import '../../api_services/api_services.dart';
+import 'package:badges/badges.dart' as badges;
+import 'package:badges/badges.dart'; 
 class HomePage extends StatefulWidget {
   const HomePage({Key? key}) : super(key: key);
 
@@ -18,21 +18,42 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  late List<Transaction> transactions;
+  late List<UserTransaction> transactions;
   late bool isLoading;
   String selectedColumn = 'docRef';
   List<String> headers = ['Doc Ref', 'Payor', 'Amount'];
   bool isAscending = true;
   int currentPage = 1;
+   int notificationCount = 0;
   int rowsPerPage = 20;
-  int _selectedIndex = 0; // Add this line to manage the active tab state
-
+  int _selectedIndex = 0; 
+  final ApiService _apiService = ApiService();
+  
   @override
   void initState() {
     super.initState();
     isLoading = true;
     transactions = [];
     fetchTransactions();
+_countNotif();
+  }
+
+  
+Future<void> _countNotif() async {
+    try {
+      List<UserTransaction> transactions = await _apiService.fetchTransactionDetails();
+      setState(() {
+        notificationCount = transactions
+            .where((transaction) =>
+           transaction.onlineProcessingStatus == 'U' ||
+           transaction.onlineProcessingStatus == 'ND' ||
+           transaction.onlineProcessingStatus == 'R'  &&
+                    transaction.notification == 'N')
+            .length;
+      });
+    } catch (e) {
+      throw Exception('Failed to fetch transaction details: $e');
+    }
   }
 
   void _onItemTapped(int index) {
@@ -46,7 +67,7 @@ class _HomePageState extends State<HomePage> {
       case 0:
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const HomePage()),
+          MaterialPageRoute(builder: (context) => const UploaderHomePage()),
         );
         break;
       case 1:
@@ -58,29 +79,34 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  Future<void> fetchTransactions() async {
-    try {
-      final response = await http.get(Uri.parse(
-          'http://192.168.131.94/localconnect/fetch_transaction_data.php'));
+Future<void> fetchTransactions() async {
+  setState(() {
+    isLoading = true;
+  });
 
-      if (response.statusCode == 200) {
-        setState(() {
-          final List<dynamic> data = json.decode(response.body);
-          transactions = data
-              .map((json) => Transaction.fromJson(json))
-              .where((transaction) => transaction.transactionStatus == 'R')
-              .toList();
-          isLoading = false;
-        });
-      } else {
-        throw Exception(
-            'Failed to load data. Status code: ${response.statusCode}');
-      }
-    } catch (e) {
-      print('Error fetching data: $e');
-      throw Exception('Failed to connect to server.');
-    }
+  try {
+    final transactionsData = await ApiService().fetchTransactions();
+    
+    setState(() {
+      transactions = transactionsData
+          .map((json) => UserTransaction.fromJson(json))
+          .where((transaction) =>
+              transaction.transactionStatus == 'R' &&
+              transaction.onlineProcessingStatus == '')
+          .toList();
+      isLoading = false;
+    });
+  } catch (e) {
+    print('Error fetching data: $e');
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Error fetching data: $e')),
+    );
+    setState(() {
+      isLoading = false;
+    });
   }
+}
+
 
   String formatDate(DateTime date) {
     final DateFormat formatter = DateFormat('MM/dd/yy');
@@ -136,7 +162,7 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  void navigateToDetails(Transaction transaction) {
+  void navigateToDetails(UserTransaction transaction) {
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -181,36 +207,53 @@ class _HomePageState extends State<HomePage> {
                   ),
                 ],
               ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  Container(
-                    margin: EdgeInsets.only(right: screenSize.width * 0.02),
-                    child: IconButton(
-                      onPressed: () {
-                        // Navigator.push(
-                        //   context,
-                        //   MaterialPageRoute(
-                        //       builder: (context) => NotificationScreen()),
-                        // );
-                      },
-                      icon: const Icon(
-                        Icons.notifications,
-                        size: 24, // Adjust size as needed
-                        color: Color.fromARGB(255, 233, 227, 227),
-                      ),
-                    ),
+               Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              Container(
+                margin: EdgeInsets.only(right: screenSize.width * 0.02),
+                child: badges.Badge(
+                  badgeContent: Text(
+                    '$notificationCount',  // Display the number of notifications
+                    style: TextStyle(color: Colors.white),
                   ),
-                  IconButton(
-                    onPressed: () {},
+                  badgeStyle: BadgeStyle(
+                    badgeColor: Colors.red,
+                    padding: EdgeInsets.all(6),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: IconButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (context) => UploaderNotification()),
+                      );
+                    },
                     icon: const Icon(
-                      Icons.person,
-                      size: 24, // Adjust size as needed
+                      Icons.notifications,
+                      size: 24,
                       color: Color.fromARGB(255, 233, 227, 227),
                     ),
                   ),
-                ],
+                ),
               ),
+              IconButton(
+                onPressed: () {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => const UserMenuWindow()),
+                  );
+                },
+                icon: const Icon(
+                  Icons.person,
+                  size: 24,
+                  color: Color.fromARGB(255, 233, 227, 227),
+                ),
+              ),
+            ],
+          ),
             ],
           ),
         ),

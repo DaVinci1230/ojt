@@ -17,6 +17,7 @@ class Transaction {
   final String approverRemarks;
   final String transactionStatus;
   final String onlineProcessDate;
+  final String notification;
 
   Transaction({
     required this.transactingParty,
@@ -37,6 +38,7 @@ class Transaction {
     required this.approverRemarks,
     required this.transactionStatus,
     required this.onlineProcessDate,
+    required this.notification,
   });
 
   factory Transaction.fromJson(Map<String, dynamic> json) {
@@ -58,6 +60,7 @@ class Transaction {
       approverRemarks: json['approver_remarks'] ?? '',
       transactionStatus: json['transaction_status'] ?? '',
       onlineProcessDate: json['online_process_date'] ?? '',
+      notification: json['notification'] ?? '',
     );
   }
 
@@ -76,4 +79,24 @@ class Transaction {
 
   bool get hasFileName => fileName != null && fileName!.isNotEmpty;
   bool get hasFilePath => filePath != null && filePath!.isNotEmpty;
+}
+
+class NotificationCount {
+  final int reprocessingCount;
+  final int transmittalCount;
+  final int uploadingCount;
+
+  NotificationCount({
+    required this.reprocessingCount,
+    required this.transmittalCount,
+    required this.uploadingCount,
+  });
+
+  factory NotificationCount.fromJson(Map<String, dynamic> json) {
+    return NotificationCount(
+      reprocessingCount: json['reprocessing_count'] ?? 0,
+      transmittalCount: json['transmittal_count'] ?? 0,
+      uploadingCount: json['uploading_count'] ?? 0,
+    );
+  }
 }

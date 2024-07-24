@@ -4,14 +4,16 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../models/admin_transaction.dart';
 import '/admin_screens/view_attachments.dart';
+import '/api_services/api_services_admin.dart';
 
 class CustomCardExample extends StatefulWidget {
   final bool isSelected;
   final Transaction transaction;
-  final Function(bool)? onSelectChanged; // New callback
-  final ValueChanged<double>? onSelectedAmountChanged; // New callback
-  final bool showSelectAllButton; // New flag for showing Select All button
-  final bool isSelectAll; // New flag for tracking Select All state
+  final Function(bool)? onSelectChanged;
+  final ValueChanged<double>? onSelectedAmountChanged;
+  final bool showSelectAllButton;
+  final bool isSelectAll;
+  final VoidCallback onResetTransactions;
 
   const CustomCardExample({
     Key? key,
@@ -21,6 +23,7 @@ class CustomCardExample extends StatefulWidget {
     this.onSelectedAmountChanged,
     required this.showSelectAllButton,
     required this.isSelectAll,
+    required this.onResetTransactions,
   }) : super(key: key);
   @override
   _CustomCardExampleState createState() => _CustomCardExampleState();
@@ -43,39 +46,28 @@ class _CustomCardExampleState extends State<CustomCardExample>
   }
 
   Future<void> _approvedTransaction(String docNo, String docType) async {
-    try {
-      final response = await http.post(
-        Uri.parse('http://192.168.131.94/localconnect/approve.php'),
-        body: {
-          'doc_no': docNo,
-          'doc_type': docType,
-        },
-      );
+  try {
+    var responseData = await ApiServiceAdmin().approveTransaction(docNo, docType);
 
-      if (response.statusCode == 200) {
-        var responseData = json.decode(response.body);
-        if (responseData['status'] == 'success') {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Transaction approved successfully')),
-          );
-          setState(() {
-            _showDetails = false;
-            _checkDetails.clear();
-          });
-        } else {
-          throw Exception('Failed to approve transaction');
-        }
-      } else {
-        throw Exception('Failed to approve transaction');
-      }
-    } catch (e) {
-      print('Error approving transaction: $e');
+    if (responseData['status'] == 'success') {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error approving transaction: $e')),
+        SnackBar(content: Text('Transaction approved successfully')),
       );
+      setState(() {
+        _showDetails = false;
+        _checkDetails.clear();
+      });
+      widget.onResetTransactions?.call();
+    } else {
+      throw Exception('Failed to approve transaction');
     }
+  } catch (e) {
+    print('Error approving transaction: $e');
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Error approving transaction: $e')),
+    );
   }
-
+}
   void resetTransaction(Transaction newTransaction) {
     setState(() {
       _showDetails = false;
@@ -84,61 +76,51 @@ class _CustomCardExampleState extends State<CustomCardExample>
     _fetchCheckDetails(newTransaction.docNo, newTransaction.docType);
   }
 
-  Future<void> _fetchCheckDetails(String docNo, String docType) async {
-    try {
-      final response = await http.get(Uri.parse(
-          'http://192.168.131.94/localconnect/view_details.php?doc_no=$docNo&doc_type=$docType'));
+Future<void> _fetchCheckDetails(String docNo, String docType) async {
+  try {
+    List<dynamic> data = await ApiServiceAdmin().fetchCheckDetails(docNo, docType);
+    
+    if (!mounted) return; // Check if the widget is still mounted
 
-      if (response.statusCode == 200) {
-        List<dynamic> data = json.decode(response.body);
-        data.sort((a, b) => DateTime.parse(b['date_trans'])
-            .compareTo(DateTime.parse(a['date_trans'])));
-        setState(() {
-          _checkDetails = List<Map<String, dynamic>>.from(data);
-        });
-      } else {
-        throw Exception('Failed to fetch check details');
-      }
-    } catch (e) {
-      print('Error fetching check details: $e');
+    data.sort((a, b) => DateTime.parse(b['date_trans'])
+        .compareTo(DateTime.parse(a['date_trans'])));
+    
+    if (mounted) {
+      setState(() {
+        _checkDetails = List<Map<String, dynamic>>.from(data);
+      });
+    }
+  } catch (e) {
+    print('Error fetching check details: $e');
+    if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error fetching check details: $e')),
       );
     }
   }
+}
 
-  Future<void> _returnTransaction(
-      String docNo, String docType, String approverRemarks) async {
-    try {
-      final response = await http.post(
-        Uri.parse('http://192.168.131.94/localconnect/return.php'),
-        body: {
-          'doc_no': docNo,
-          'doc_type': docType,
-          'approver_remarks': approverRemarks,
-        },
-      );
+Future<void> _returnTransaction(String docNo, String docType, String approverRemarks) async {
+  try {
+    var responseData = await ApiServiceAdmin().returnTransaction(docNo, docType, approverRemarks);
 
-      if (response.statusCode == 200) {
-        var responseData = json.decode(response.body);
-        if (responseData['status'] == 'success') {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Transaction rejected successfully')),
-          );
-          resetTransaction(widget.transaction);
-        } else {
-          throw Exception('Failed to reject transaction');
-        }
-      } else {
-        throw Exception('Failed to reject transaction');
-      }
-    } catch (e) {
-      print('Error rejecting transaction: $e');
+    if (responseData['status'] == 'success') {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error rejecting transaction: $e')),
+        SnackBar(content: Text('Transaction returned successfully')),
       );
+      resetTransaction(widget.transaction);
+      widget.onResetTransactions?.call();
+    } else {
+      throw Exception('Failed to return transaction');
     }
+  } catch (e) {
+    print('Error returning transaction: $e');
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Error returning transaction: $e')),
+    );
   }
+}
+
 
   void _toggleSelection() {
     widget.onSelectChanged?.call(!widget.transaction.isSelected);
@@ -201,40 +183,30 @@ class _CustomCardExampleState extends State<CustomCardExample>
     );
   }
 
-  Future<void> _rejectTransaction(String docNo, String docType) async {
-    try {
-      final response = await http.post(
-        Uri.parse('http://192.168.131.94/localconnect/reject.php'),
-        body: {
-          'doc_no': docNo,
-          'doc_type': docType,
-        },
-      );
+Future<void> _rejectTransaction(String docNo, String docType) async {
+  try {
+    var responseData = await ApiServiceAdmin().rejectTransaction(docNo, docType);
 
-      if (response.statusCode == 200) {
-        var responseData = json.decode(response.body);
-        if (responseData['status'] == 'success') {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Transaction rejected successfully')),
-          );
-          // Reset the card state
-          setState(() {
-            _showDetails = false;
-            _checkDetails.clear();
-          });
-        } else {
-          throw Exception('Failed to reject transaction');
-        }
-      } else {
-        throw Exception('Failed to reject transaction');
-      }
-    } catch (e) {
-      print('Error rejecting transaction: $e');
+    if (responseData['status'] == 'success') {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error rejecting transaction: $e')),
+        SnackBar(content: Text('Transaction rejected successfully')),
       );
+      // Reset the card state
+      setState(() {
+        _showDetails = false;
+        _checkDetails.clear();
+      });
+      widget.onResetTransactions?.call();
+    } else {
+      throw Exception('Failed to reject transaction');
     }
+  } catch (e) {
+    print('Error rejecting transaction: $e');
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Error rejecting transaction: $e')),
+    );
   }
+}
 
   Widget _buildCheckDetailsTable(List<Map<String, dynamic>> checkDetailsList) {
     List<TableRow> rows = [];

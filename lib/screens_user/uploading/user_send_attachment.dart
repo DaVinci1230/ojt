@@ -1,22 +1,22 @@
-import 'dart:convert';
-import 'dart:typed_data';
-import 'package:file_picker/file_picker.dart';
 import 'dart:developer' as developer;
 import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'package:ojt/screens_user/uploading/uploader_hompage.dart';
-import 'package:ojt/widgets/navbar.dart';
-import '../../admin_screens/notifications.dart';
+import '../uploader_notification.dart';
+import '/screens_user/uploading/uploader_hompage.dart';
+import '/widgets/navbar.dart';
 import '../../models/user_transaction.dart';
 import 'user_menu.dart';
 import 'user_upload.dart';
-import 'no_support.dart';
 import 'user_add_attachment.dart';
 import 'view_files.dart';
+import '../../api_services/api_services.dart';
+import 'package:badges/badges.dart' as badges;
+import 'package:badges/badges.dart'; 
+import 'dart:convert';
+import 'dart:typed_data';
 
 class UserSendAttachment extends StatefulWidget {
-  final Transaction transaction;
+  final UserTransaction transaction;
   final List selectedDetails;
   final List<Map<String, String>> attachments;
 
@@ -35,14 +35,40 @@ class _UserSendAttachmentState extends State<UserSendAttachment> {
   int _selectedIndex = 0;
   bool _showRemarks = false;
   bool _isLoading = false;
-
+  final ApiService _apiService = ApiService();
+ int notificationCount = 0;
   List<Map<String, String>> attachments = [];
 
   @override
   void initState() {
     super.initState();
-    attachments = widget.attachments; // Initialize attachments list
+    attachments = widget.attachments;
+    _countNotif();
   }
+
+  // Function to convert image file to Base64
+Future<String> convertImageToBase64(Uint8List imageBytes) async {
+  return base64Encode(imageBytes);
+}
+
+Future<void> _countNotif() async {
+    try {
+      List<UserTransaction> transactions = await _apiService.fetchTransactionDetails();
+      setState(() {
+        notificationCount = transactions
+            .where((transaction) =>
+           transaction.onlineProcessingStatus == 'U' ||
+           transaction.onlineProcessingStatus == 'ND' ||
+           transaction.onlineProcessingStatus == 'R'  &&
+                    transaction.notification == 'N')
+            .length;
+      });
+    } catch (e) {
+      throw Exception('Failed to fetch transaction details: $e');
+    }
+  }
+
+
 
   String createDocRef(String docType, String docNo) {
     return '$docType#$docNo';
@@ -76,13 +102,13 @@ class _UserSendAttachmentState extends State<UserSendAttachment> {
           MaterialPageRoute(builder: (context) => const HomePage()),
         );
         break;
+      // case 1:
+      //   Navigator.pushReplacement(
+      //     context,
+      //     MaterialPageRoute(builder: (context) => const NoSupportScreen()),
+      //   );
+      //   break;
       case 1:
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const NoSupportScreen()),
-        );
-        break;
-      case 2:
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => const UserMenuWindow()),
@@ -92,115 +118,47 @@ class _UserSendAttachmentState extends State<UserSendAttachment> {
   }
 
   Future<void> _uploadTransactionOrFile() async {
-    if (widget.transaction != null && widget.attachments != null) {
-      setState(() {
-        _isLoading = true;
-      });
+  if (widget.transaction != null && widget.attachments != null && widget.attachments.isNotEmpty) {
+    setState(() {
+      _isLoading = true;
+    });
 
-      bool allUploadedSuccessfully = true;
-      List<String> errorMessages = [];
+    try {
+      var result = await ApiService().uploadTransactionAndFiles(
+        docType: widget.transaction.docType.toString(),
+        docNo: widget.transaction.docNo.toString(),
+        dateTrans: widget.transaction.dateTrans.toString(),
+        attachments: widget.attachments.toList(),
+      );
 
-      try {
-        var uri = Uri.parse(
-            'http://192.168.131.94/localconnect/UserUploadUpdate/update_u.php');
-
-        for (var attachment in widget.attachments.toList()) {
-          if (attachment['name'] != null &&
-              attachment['bytes'] != null &&
-              attachment['size'] != null) {
-            var request = http.MultipartRequest('POST', uri);
-
-            request.fields['doc_type'] = widget.transaction.docType.toString();
-            request.fields['doc_no'] = widget.transaction.docNo.toString();
-            request.fields['date_trans'] =
-                widget.transaction.dateTrans.toString();
-
-            var pickedFile = PlatformFile(
-              name: attachment['name']!,
-              bytes: Uint8List.fromList(utf8.encode(attachment['bytes']!)),
-              size: int.parse(attachment['size']!),
-            );
-
-            if (pickedFile.bytes != null) {
-              request.files.add(
-                http.MultipartFile.fromBytes(
-                  'file',
-                  pickedFile.bytes!,
-                  filename: pickedFile.name,
-                ),
-              );
-
-              developer.log('Uploading file: ${pickedFile.name}');
-
-              var response = await request.send();
-
-              if (response.statusCode == 200) {
-                var responseBody = await response.stream.bytesToString();
-                developer.log('Upload response: $responseBody');
-
-                if (responseBody.startsWith('{') &&
-                    responseBody.endsWith('}')) {
-                  var result = jsonDecode(responseBody);
-
-                  if (result['status'] == 'success') {
-                    setState(() {
-                      widget.attachments.removeWhere(
-                          (element) => element['name'] == pickedFile.name);
-                      widget.attachments
-                          .add({'name': pickedFile.name, 'status': 'Uploaded'});
-                      developer.log(
-                          'Attachments array after uploading: ${widget.attachments}');
-                    });
-                  } else {
-                    allUploadedSuccessfully = false;
-                    errorMessages.add(result['message']);
-                    developer.log('File upload failed: ${result['message']}');
-                  }
-                } else {
-                  allUploadedSuccessfully = false;
-                  errorMessages.add('Invalid response from server');
-                  developer.log('Invalid response from server: $responseBody');
-                }
-              } else {
-                allUploadedSuccessfully = false;
-                errorMessages.add(
-                    'File upload failed with status: ${response.statusCode}');
-                developer.log(
-                    'File upload failed with status: ${response.statusCode}');
-              }
-            } else {
-              allUploadedSuccessfully = false;
-              errorMessages.add('Error: attachment bytes are null or empty');
-              developer.log('Error: attachment bytes are null or empty');
-            }
-          } else {
-            allUploadedSuccessfully = false;
-            errorMessages.add('Error: attachment name, bytes or size is null');
-            developer.log('Error: attachment name, bytes or size is null');
-          }
-        }
-
-        if (allUploadedSuccessfully) {
-          _showDialog(context, 'Success', 'All files uploaded successfully!');
-        } else {
-          _showDialog(context, 'Error',
-              'Error uploading files:\n${errorMessages.join('\n')}');
-        }
-      } catch (e) {
-        developer.log('Error uploading file or transaction: $e');
-        _showDialog(
-            context, 'Error', 'Error uploading file. Please try again later.');
-      } finally {
+      if (result['success']) {
         setState(() {
-          _isLoading = false;
+          widget.attachments.forEach((attachment) {
+            attachment['status'] = 'Uploaded';
+          });
+          developer.log('Attachments array after uploading: ${widget.attachments}');
         });
+
+        _showDialog(context, 'Success', result['message']);
+      } else {
+        _showDialog(context, 'Error', result['message']);
+        developer.log('Error uploading files: ${result['message']}');
       }
-    } else {
-      developer.log('Error: widget.transaction or attachments is null');
-      _showDialog(
-          context, 'Error', 'Error uploading file. Please try again later.');
+    } catch (e) {
+      developer.log('Error uploading file or transaction: $e');
+      _showDialog(context, 'Error', 'Error uploading file. Please try again later.');
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
     }
+  } else {
+    developer.log('Error: widget.transaction or attachments is null or empty');
+    _showDialog(context, 'Error', 'No transaction or attachments to upload.');
   }
+}
+
+
 
   void _showDialog(BuildContext context, String title, String content) {
     showDialog(
@@ -220,7 +178,7 @@ class _UserSendAttachmentState extends State<UserSendAttachment> {
     );
   }
 
-  Widget buildDetailsCard(Transaction detail) {
+  Widget buildDetailsCard(UserTransaction detail) {
     return Container(
       height: 450,
       child: Card(
@@ -288,7 +246,7 @@ class _UserSendAttachmentState extends State<UserSendAttachment> {
     );
   }
 
-  Widget buildTable(Transaction detail) {
+  Widget buildTable(UserTransaction detail) {
     return Table(
       columnWidths: {
         0: FlexColumnWidth(1),
@@ -364,16 +322,26 @@ class _UserSendAttachmentState extends State<UserSendAttachment> {
               ],
             ),
             Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                Container(
-                  margin: EdgeInsets.only(right: screenSize.width * 0.02),
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              Container(
+                margin: EdgeInsets.only(right: screenSize.width * 0.02),
+                child: badges.Badge(
+                  badgeContent: Text(
+                    '$notificationCount',  // Display the number of notifications
+                    style: TextStyle(color: Colors.white),
+                  ),
+                  badgeStyle: BadgeStyle(
+                    badgeColor: Colors.red,
+                    padding: EdgeInsets.all(6),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                   child: IconButton(
                     onPressed: () {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                            builder: (context) => NotificationScreen()),
+                            builder: (context) => UploaderNotification()),
                       );
                     },
                     icon: const Icon(
@@ -383,16 +351,25 @@ class _UserSendAttachmentState extends State<UserSendAttachment> {
                     ),
                   ),
                 ),
-                IconButton(
-                  onPressed: () {},
-                  icon: const Icon(
-                    Icons.person,
-                    size: 24,
-                    color: Color.fromARGB(255, 233, 227, 227),
-                  ),
+              ),
+              IconButton(
+                onPressed: () {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => const UserMenuWindow()),
+                  );
+                },
+                icon: const Icon(
+                  Icons.person,
+                  size: 24,
+                  color: Color.fromARGB(255, 233, 227, 227),
                 ),
-              ],
-            ),
+              ),
+            ],
+          ),
+
+
           ],
         ),
       ),

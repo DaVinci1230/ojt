@@ -1,92 +1,78 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import '/models/user_transaction.dart';
 import '../widgets/transmitter_card_history.dart';
+import '../../api_services/transmitter_api.dart';
 
 class HomepageHistory extends StatefulWidget {
-  const HomepageHistory({Key? key}) : super(key: key);
+  String selectedFilter;
+  DateTime? startDate;
+  DateTime? endDate;
+  bool isOldestFirst;
+
+  HomepageHistory({
+    Key? key,
+    required this.selectedFilter,
+    this.startDate,
+    this.endDate,
+    required this.isOldestFirst,
+  }) : super(key: key);
 
   @override
   _HomepageHistoryState createState() => _HomepageHistoryState();
 }
 
 class _HomepageHistoryState extends State<HomepageHistory> {
-  List<Transaction> transactions = [];
-  String selectedFilter = 'All';
-  DateTime? startDate;
-  DateTime? endDate;
+  List<UserTransaction> transactions = [];
+     final TransmitterAPI _apiService = TransmitterAPI();
+
 
   @override
   void initState() {
     super.initState();
-    DateTime now = DateTime.now();
-    startDate = DateTime(now.year, now.month, 1);
-    endDate = now;
     _loadTransactions();
   }
 
+
   Future<void> _loadTransactions() async {
-    try {
-      // Show loading indicator here
-      setState(() {});
+  try {
+    setState(() {}); // Show loading indicator here
 
-      var url =
-          Uri.parse('http://192.168.131.94/localconnect/transmitter_history.php');
-      var response = await http.get(url);
+    List<UserTransaction> fetchedTransactions = await _apiService.fetchTransactionsHistory();
 
-      if (response.statusCode == 200) {
-        var jsonData = jsonDecode(response.body);
-        if (jsonData is List) {
-          List<Transaction> fetchedTransactions = jsonData
-              .map((transaction) => Transaction.fromJson(transaction))
-              .toList();
-          fetchedTransactions.sort(
-              (a, b) => b.onlineProcessDate.compareTo(a.onlineProcessDate));
-          setState(() {
-            transactions = fetchedTransactions
-                .where((transaction) =>
-                    (transaction.transactionStatus == 'R' &&
-                        transaction.onlineProcessingStatus == 'T') ||
-                    (transaction.transactionStatus == 'R' &&
-                    transaction.onlineProcessingStatus == 'TND') ||
-                    transaction.transactionStatus == 'N' 
-                    || transaction.transactionStatus == 'A'
-                    ) 
-                .toList();
-          });
-        } else {
-          throw Exception('Unexpected response format');
-        }
-      } else {
-        throw Exception(
-            'Failed to load transaction details: ${response.statusCode}');
-      }
-    } catch (e) {
-      // Show error message to user
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to fetch transaction details: $e'),
-          duration: Duration(seconds: 5),
-        ),
-      );
-    } finally {
-      // Hide loading indicator here
-      setState(() {});
-    }
+    setState(() {
+      transactions = fetchedTransactions.where((transaction) =>
+        (transaction.transactionStatus == 'R' && transaction.onlineProcessingStatus == 'R') ||
+        (transaction.transactionStatus == 'R' && transaction.onlineProcessingStatus == 'TND') ||
+        (transaction.transactionStatus == 'R' && transaction.onlineProcessingStatus == 'T') ||
+        (transaction.transactionStatus == 'R' && transaction.onlineProcessingStatus == 'U') ||
+        (transaction.transactionStatus == 'R' && transaction.onlineProcessingStatus == 'ND') ||
+        transaction.transactionStatus == 'N' || transaction.transactionStatus == 'A'
+      ).toList();
+    });
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Failed to fetch transaction details: $e'),
+        duration: Duration(seconds: 5),
+      ),
+    );
+  } finally {
+    setState(() {}); // Hide loading indicator here
   }
+}
+
 
   Future<void> _selectStartDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: startDate ?? DateTime.now(),
+      initialDate: widget.startDate ?? DateTime.now(),
       firstDate: DateTime(2000),
       lastDate: DateTime(2101),
     );
     if (picked != null) {
       setState(() {
-        startDate = picked;
+        widget.startDate = picked;
       });
       _loadTransactions();
     }
@@ -95,13 +81,13 @@ class _HomepageHistoryState extends State<HomepageHistory> {
   Future<void> _selectEndDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: endDate ?? DateTime.now(),
+      initialDate: widget.endDate ?? DateTime.now(),
       firstDate: DateTime(2000),
       lastDate: DateTime(2101),
     );
     if (picked != null) {
       setState(() {
-        endDate = picked;
+        widget.endDate = picked;
       });
       _loadTransactions();
     }
@@ -109,65 +95,91 @@ class _HomepageHistoryState extends State<HomepageHistory> {
 
   @override
   Widget build(BuildContext context) {
+    final screenSize = MediaQuery.of(context).size;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Transaction History'),
       ),
       body: Column(
         children: [
-          _buildFilterButton(),
-          _buildDateRangePicker(context),
+          _buildFilterButton(screenSize),
+          _buildDateRangePicker(context, screenSize),
           Expanded(
             child: _buildTransactionList(),
-          )
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildFilterButton() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.end,
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(15),
-          child: Row(
-            children: [
-              DropdownButton<String>(
-                value: selectedFilter,
-                dropdownColor: Color.fromARGB(255, 235, 238, 240),
-                onChanged: (String? newValue) {
-                  setState(() {
-                    selectedFilter = newValue!;
-                  });
-                  _loadTransactions(); // Reload transactions after filter change
-                },
-                items: <String>['All', 'Approved', 'Rejected', 'Returned', 'On process']
-                    .map<DropdownMenuItem<String>>((String value) {
-                  return DropdownMenuItem<String>(
-                    value: value,
-                    child: Text(value),
-                  );
-                }).toList(),
+  Widget _buildFilterButton(Size screenSize) {
+    return Padding(
+      padding: EdgeInsets.all(screenSize.width * 0.03),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          ElevatedButton(
+            onPressed: () {
+              setState(() {
+                widget.isOldestFirst = !widget.isOldestFirst;
+              });
+              _loadTransactions();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(screenSize.width * 0.02),
               ),
-              const SizedBox(
-                width: 15,
-              )
-            ],
+              padding: EdgeInsets.symmetric(
+                horizontal: screenSize.width * 0.05,
+                vertical: screenSize.height * 0.02,
+              ),
+            ),
+            child: Text(
+              widget.isOldestFirst ? 'Oldest First' : 'Newest First',
+              style: TextStyle(
+                fontSize: screenSize.width * 0.03,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
           ),
-        ),
-      ],
+          DropdownButton<String>(
+            value: widget.selectedFilter,
+            dropdownColor: Color.fromARGB(255, 235, 238, 240),
+            onChanged: (String? newValue) {
+              setState(() {
+                widget.selectedFilter = newValue!;
+              });
+              _loadTransactions();
+            },
+            items: <String>['All', 'Approved', 'Rejected', 'Returned', 'On Process']
+                .map<DropdownMenuItem<String>>((String value) {
+              return DropdownMenuItem<String>(
+                value: value,
+                child: Text(
+                  value,
+                  style: TextStyle(fontSize: screenSize.width * 0.03),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildDateRangePicker(BuildContext context) {
+  Widget _buildDateRangePicker(BuildContext context, Size screenSize) {
     final DateFormat formatter = DateFormat('MMMM d, y');
     return Padding(
-      padding: const EdgeInsets.all(8.0),
+      padding: EdgeInsets.all(screenSize.width * 0.02),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          Text('From'),
+          Text(
+            'From',
+            style: TextStyle(fontSize: screenSize.width * 0.03),
+          ),
           ElevatedButton(
             onPressed: () {
               _selectStartDate(context);
@@ -175,21 +187,24 @@ class _HomepageHistoryState extends State<HomepageHistory> {
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.blue,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(5),
+                borderRadius: BorderRadius.circular(screenSize.width * 0.02),
               ),
-              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              padding: EdgeInsets.symmetric(
+                horizontal: screenSize.width * 0.05,
+                vertical: screenSize.height * 0.02,
+              ),
             ),
             child: Text(
-              formatter.format(startDate!),
+              formatter.format(widget.startDate!),
               style: TextStyle(
-                // Style
                 color: Colors.black,
+                fontSize: screenSize.width * 0.03,
               ),
             ),
           ),
           Text(
             'to',
-            style: TextStyle(fontSize: 16),
+            style: TextStyle(fontSize: screenSize.width * 0.03),
           ),
           ElevatedButton(
             onPressed: () {
@@ -198,15 +213,18 @@ class _HomepageHistoryState extends State<HomepageHistory> {
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.blue,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(5),
+                borderRadius: BorderRadius.circular(screenSize.width * 0.02),
               ),
-              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              padding: EdgeInsets.symmetric(
+                horizontal: screenSize.width * 0.05,
+                vertical: screenSize.height * 0.02,
+              ),
             ),
             child: Text(
-              formatter.format(endDate!),
+              formatter.format(widget.endDate!),
               style: TextStyle(
-                // Style
                 color: Colors.black,
+                fontSize: screenSize.width * 0.03,
               ),
             ),
           )
@@ -216,30 +234,31 @@ class _HomepageHistoryState extends State<HomepageHistory> {
   }
 
   Widget _buildTransactionList() {
-    List<Transaction> filteredTransactions = transactions;
-    if (selectedFilter != 'All') {
+    final screenSize = MediaQuery.of(context).size;
+    List<UserTransaction> filteredTransactions = transactions;
+    if (widget.selectedFilter != 'All') {
       filteredTransactions = filteredTransactions.where((transaction) {
-        switch (selectedFilter) {
+        switch (widget.selectedFilter) {
           case 'Approved':
             return transaction.transactionStatus == 'A';
           case 'Rejected':
             return transaction.transactionStatus == 'N';
           case 'Returned':
-            return transaction.transactionStatus == 'R' && transaction.onlineTransactionStatus == 'R';
-          case 'On process':
-          return transaction.transactionStatus == 'R' && transaction.onlineProcessingStatus == 'TND';
+            return transaction.transactionStatus == 'R';
+          case 'On Process':
+            return transaction.onlineProcessingStatus == 'U' || transaction.onlineProcessingStatus == 'ND';
           default:
             return true;
         }
       }).toList();
     }
-    if (startDate != null && endDate != null) {
+    if (widget.startDate != null && widget.endDate != null) {
       filteredTransactions = filteredTransactions.where((transaction) {
         try {
           var transactionDate = DateTime.parse(transaction.onlineProcessDate);
           return transactionDate
-                  .isAfter(startDate!.subtract(Duration(days: 1))) &&
-              transactionDate.isBefore(endDate!.add(Duration(days: 1)));
+                  .isAfter(widget.startDate!.subtract(Duration(days: 1))) &&
+              transactionDate.isBefore(widget.endDate!.add(Duration(days: 1)));
         } catch (e) {
           print('Error parsing date "${transaction.onlineProcessDate}": $e');
           return false;
@@ -249,16 +268,16 @@ class _HomepageHistoryState extends State<HomepageHistory> {
 
     if (filteredTransactions.isEmpty) {
       return Center(
-        child: const Text(
+        child: Text(
           'No transactions found!',
-          style: TextStyle(fontSize: 16),
+          style: TextStyle(fontSize: screenSize.width * 0.04),
         ),
       );
     } else {
       return ListView.builder(
         itemCount: filteredTransactions.length,
         itemBuilder: (BuildContext context, int index) {
-          Transaction transaction = filteredTransactions[index];
+          UserTransaction transaction = filteredTransactions[index];
           return TransmitterCardHistory(
             transaction: transaction,
           );

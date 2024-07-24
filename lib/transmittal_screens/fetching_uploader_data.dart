@@ -1,3 +1,4 @@
+import 'package:badges/badges.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -5,10 +6,13 @@ import 'package:intl/intl.dart';
 import 'package:scrollable_table_view/scrollable_table_view.dart';
 import '../models/user_transaction.dart'; // Import your Transaction model
 import '../widgets/table.dart';
-import 'no_support_uploader.dart';
+import 'transmittal_notification.dart';
 import 'transmitter_homepage.dart';
 import 'uploader_menu.dart';
 import 'uploading_details.dart';
+import 'package:badges/badges.dart' as badges;
+import '/api_services/transmitter_api.dart';
+
 
 class fetchUpload extends StatefulWidget {
   const fetchUpload({Key? key}) : super(key: key);
@@ -18,15 +22,16 @@ class fetchUpload extends StatefulWidget {
 }
 
 class _fetchUploadState extends State<fetchUpload> {
-  late List<Transaction> transactions;
+  late List<UserTransaction> transactions;
   late bool isLoading;
   String selectedColumn = 'docRef';
   List<String> headers = ['Doc Ref', 'Payor', 'Amount'];
   bool isAscending = true;
   int currentPage = 1;
   int rowsPerPage = 20;
-  int _selectedIndex = 0; // Add this line to manage the active tab state
-
+  int _selectedIndex = 0;
+  int notificationCount = 0; 
+  final TransmitterAPI _apiService = TransmitterAPI();
   @override
   void initState() {
     super.initState();
@@ -52,17 +57,29 @@ class _fetchUploadState extends State<fetchUpload> {
       case 1:
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const UploaderNoSupport()),
-        );
-        break;
-      case 2:
-        Navigator.pushReplacement(
-          context,
           MaterialPageRoute(builder: (context) => const UploaderMenuWindow()),
         );
         break;
     }
   }
+
+  Future<void> _countNotif() async {
+    try {
+      List<UserTransaction> transactions = await _apiService.countNotification();
+      setState(() {
+        notificationCount = transactions
+            .where((transaction) =>
+                transaction.onlineProcessingStatus == 'TND' ||
+                transaction.onlineProcessingStatus == 'T' &&
+                    transaction.notification == 'N')
+            .length;
+      });
+    } catch (e) {
+      throw Exception('Failed to fetch transaction details: $e');
+    }
+  }
+
+
 
   void _navigateToTransmitterHomePage(BuildContext context) {
     Navigator.push(
@@ -73,31 +90,33 @@ class _fetchUploadState extends State<fetchUpload> {
     );
   }
 
-  Future<void> fetchTransactions() async {
-    try {
-      final response = await http.get(Uri.parse(
-          'http://192.168.131.94/localconnect/fetch_transaction_data.php'));
+Future<void> fetchTransactions() async {
+  setState(() {
+    isLoading = true;
+  });
 
-      if (response.statusCode == 200) {
-        setState(() {
-          final List<dynamic> data = json.decode(response.body);
-          transactions = data
-              .map((json) => Transaction.fromJson(json))
-              .where((transaction) =>
-                  transaction.transactionStatus == 'R' &&
-                  transaction.onlineProcessingStatus == '')
-              .toList();
-          isLoading = false;
-        });
-      } else {
-        throw Exception(
-            'Failed to load data. Status code: ${response.statusCode}');
-      }
-    } catch (e) {
-      print('Error fetching data: $e');
-      throw Exception('Failed to connect to server.');
-    }
+  try {
+    List<UserTransaction> fetchedTransactions = await TransmitterAPI().fetchTransactionsUploader();
+    setState(() {
+      transactions = fetchedTransactions;
+      isLoading = false;
+    });
+  } catch (e) {
+    print('Error fetching data: $e');
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Failed to fetch transactions: $e'),
+        duration: Duration(seconds: 5),
+      ),
+    );
+    setState(() {
+      isLoading = false;
+    });
   }
+}
+
+
+
 
   void previousPage() {
     setState(() {
@@ -165,7 +184,7 @@ class _fetchUploadState extends State<fetchUpload> {
     });
   }
 
-  void navigateToDetails(Transaction transaction) {
+  void navigateToDetails(UserTransaction transaction) {
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -205,7 +224,7 @@ class _fetchUploadState extends State<fetchUpload> {
                   ),
                 ),
                 Image.asset(
-                  'logo.png',
+                  'assets/logo.png',
                   width: 60,
                   height: 55,
                 ),
@@ -219,42 +238,61 @@ class _fetchUploadState extends State<fetchUpload> {
                 ),
               ],
             ),
-            Row(
+           Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                Container(
-                  margin: EdgeInsets.only(right: screenSize.width * 0.02),
-                  child: IconButton(
-                    onPressed: () {
-                      // Navigator.push(
-                      //   context,
-                      //   MaterialPageRoute(
-                      //       builder: (context) => NotificationScreen()),
-                      // );
-                    },
-                    icon: const Icon(
-                      Icons.notifications,
-                      size: 24, // Adjust size as needed
-                      color: Color.fromARGB(255, 233, 227, 227),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Container(
+                      margin: EdgeInsets.only(right: screenSize.width * 0.02),
+                      child: badges.Badge(
+                        badgeContent: Text(
+                          notificationCount > 0 ? '$notificationCount' : '',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                        badgeStyle: BadgeStyle(
+                          badgeColor: notificationCount > 0
+                              ? Colors.red
+                              : Colors.transparent,
+                          padding: EdgeInsets.all(6),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: IconButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (context) => TransmittalNotification()),
+                            );
+                          },
+                          icon: const Icon(
+                            Icons.notifications,
+                            size: 24,
+                            color: Color.fromARGB(255, 233, 227, 227),
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-                IconButton(
-                  onPressed: () {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                          builder: (context) => const UploaderMenuWindow()),
-                    );
-                  },
-                  icon: const Icon(
-                    Icons.person,
-                    size: 24, // Adjust size as needed
-                    color: Color.fromARGB(255, 233, 227, 227),
-                  ),
+                    IconButton(
+                      onPressed: () {
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                              builder: (context) => UploaderMenuWindow()),
+                        );
+                      },
+                      icon: const Icon(
+                        Icons.person,
+                        size: 24,
+                        color: Color.fromARGB(255, 233, 227, 227),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
+
           ],
         ),
       ),
@@ -305,10 +343,7 @@ class _fetchUploadState extends State<fetchUpload> {
             icon: Icon(Icons.upload_file_outlined),
             label: 'Upload',
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.quiz),
-            label: 'No Support',
-          ),
+          
           BottomNavigationBarItem(
             icon: Icon(Icons.menu_sharp),
             label: 'Menu',

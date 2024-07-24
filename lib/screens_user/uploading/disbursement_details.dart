@@ -1,24 +1,26 @@
-import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:ojt/screens_user/uploading/no_support.dart';
-import 'package:ojt/screens_user/uploading/uploader_hompage.dart';
-import 'package:ojt/screens_user/uploading/user_upload.dart';
-import 'package:ojt/screens_user/uploading/user_upload.dart';
-import 'package:ojt/widgets/navbar.dart';
+import '../../api_services/api_services.dart';
+import '../../transmittal_screens/homepage_menu.dart';
 
-import '../../admin_screens/notifications.dart';
+import '../uploader_notification.dart';
+import '/screens_user/uploading/user_upload.dart';
+
+import '/widgets/navbar.dart';
+import 'package:badges/badges.dart' as badges;
+import 'package:badges/badges.dart';
 import '../../models/user_transaction.dart';
-
 import 'user_add_attachment.dart';
-import 'package:http/http.dart' as http;
 import 'user_menu.dart';
+import 'package:badges/badges.dart' as badges;
+import 'package:badges/badges.dart'; 
 
 class DisbursementDetailsScreen extends StatefulWidget {
-  final Transaction transaction;
+  final UserTransaction transaction;
   final List<String> selectedDetails;
   final bool isReprocessing;
+  int notificationCount = 0;
 
   DisbursementDetailsScreen(
       {Key? key,
@@ -27,7 +29,6 @@ class DisbursementDetailsScreen extends StatefulWidget {
       this.isReprocessing = false})
       : super(key: key);
 
-  @override
   _DisbursementDetailsScreenState createState() =>
       _DisbursementDetailsScreenState();
 }
@@ -39,6 +40,14 @@ String createDocRef(String docType, String docNo) {
 class _DisbursementDetailsScreenState extends State<DisbursementDetailsScreen> {
   int _selectedIndex = 0;
   bool _isLoading = false;
+  final ApiService _apiService = ApiService();
+  int notificationCount = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _countNotif();
+  }
 
   String formatDate(DateTime date) {
     final DateFormat formatter = DateFormat('MM/dd/yyyy');
@@ -77,51 +86,50 @@ class _DisbursementDetailsScreenState extends State<DisbursementDetailsScreen> {
     }
   }
 
+Future<void> _countNotif() async {
+    try {
+      List<UserTransaction> transactions = await _apiService.fetchTransactionDetails();
+      setState(() {
+        notificationCount = transactions
+            .where((transaction) =>
+           transaction.onlineProcessingStatus == 'U' ||
+           transaction.onlineProcessingStatus == 'ND' ||
+           transaction.onlineProcessingStatus == 'R' ||
+                transaction.onlineProcessingStatus == 'TND' ||
+                transaction.onlineProcessingStatus == 'T' &&
+                    transaction.notification == 'N')
+            .length;
+      });
+    } catch (e) {
+      throw Exception('Failed to fetch transaction details: $e');
+    }
+  }
+
   Future<void> _uploadTransaction() async {
     setState(() {
       _isLoading = true; // Show loading indicator
     });
 
     try {
-      var uri = Uri.parse(
-          'http://192.168.68.127/localconnect/UserUploadUpdate/update_ops_und.php');
-      var request = http.Request('POST', uri);
+      await ApiService().uploadTransaction(
+        widget.transaction.docType,
+        widget.transaction.docNo,
+        widget.transaction.dateTrans,
+      );
 
-      var requestBody =
-          'doc_type=${Uri.encodeComponent(widget.transaction.docType)}&doc_no=${Uri.encodeComponent(widget.transaction.docNo)}&date_trans=${Uri.encodeComponent(widget.transaction.dateTrans)}';
-
-      request.headers['Content-Type'] = 'application/x-www-form-urlencoded';
-      request.body = requestBody;
-
-      var response = await request.send();
-
-      if (response.statusCode == 200) {
-        var responseBody = await response.stream.bytesToString();
-        var result = jsonDecode(responseBody);
-
-        if (result['status'] == 'Success') {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(result['message'])),
-          );
-          Navigator.pop(context);
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(result['message'])),
-          );
-        }
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content: Text(
-                  'Transaction upload failed with status: ${response.statusCode}')),
-        );
-      }
-    } catch (e) {
-      print('Error uploading transaction: $e');
+      // If upload succeeds, show success message and possibly navigate back
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-            content:
-                Text('Error uploading transaction. Please try again later.')),
+          content: Text('Transaction uploaded successfully'),
+        ),
+      );
+      Navigator.pop(context); // Navigate back assuming this is a modal or page
+    } catch (e) {
+      // Handle error cases
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to upload transaction: $e'),
+        ),
       );
     } finally {
       setState(() {
@@ -130,7 +138,7 @@ class _DisbursementDetailsScreenState extends State<DisbursementDetailsScreen> {
     }
   }
 
-  Widget buildDetailsCard(Transaction detail) {
+  Widget buildDetailsCard(UserTransaction detail) {
     return Container(
       child: Card(
         semanticContainer: true,
@@ -211,7 +219,7 @@ class _DisbursementDetailsScreenState extends State<DisbursementDetailsScreen> {
     );
   }
 
-  Widget buildTable(Transaction detail) {
+  Widget buildTable(UserTransaction detail) {
     return Table(
       columnWidths: {
         0: FlexColumnWidth(1),
@@ -288,17 +296,26 @@ class _DisbursementDetailsScreenState extends State<DisbursementDetailsScreen> {
               ],
             ),
             Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                Container(
-                  margin: EdgeInsets.only(right: screenSize.width * 0.02),
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              Container(
+                margin: EdgeInsets.only(right: screenSize.width * 0.02),
+                child: badges.Badge(
+                  badgeContent: Text(
+                    '$notificationCount',  // Display the number of notifications
+                    style: TextStyle(color: Colors.white),
+                  ),
+                  badgeStyle: BadgeStyle(
+                    badgeColor: Colors.red,
+                    padding: EdgeInsets.all(6),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                   child: IconButton(
                     onPressed: () {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => NotificationScreen(),
-                        ),
+                            builder: (context) => UploaderNotification()),
                       );
                     },
                     icon: const Icon(
@@ -308,16 +325,25 @@ class _DisbursementDetailsScreenState extends State<DisbursementDetailsScreen> {
                     ),
                   ),
                 ),
-                IconButton(
-                  onPressed: () {},
-                  icon: const Icon(
-                    Icons.person,
-                    size: 24,
-                    color: Color.fromARGB(255, 233, 227, 227),
-                  ),
+              ),
+              IconButton(
+                onPressed: () {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => const HomepageMenuWindow()),
+                  );
+                },
+                icon: const Icon(
+                  Icons.person,
+                  size: 24,
+                  color: Color.fromARGB(255, 233, 227, 227),
                 ),
-              ],
-            ),
+              ),
+            ],
+          ),
+
+
           ],
         ),
       ),

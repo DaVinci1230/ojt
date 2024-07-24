@@ -2,18 +2,20 @@ import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:typed_data';
 import 'dart:ui';
-import 'package:image/image.dart' as img;
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
-import 'package:image_picker/image_picker.dart';
 import '../models/user_transaction.dart';
 import '../transmittal_screens/transmitter_homepage.dart';
 import '../transmittal_screens/transmitter_send_attachment.dart';
 import 'uploader_menu.dart';
+import 'package:image/image.dart' as img;
+import 'package:image_picker/image_picker.dart';
+
+import '../../api_services/transmitter_api.dart';
 
 class TransmitterAddAttachment extends StatefulWidget {
-  final Transaction transaction;
+  final UserTransaction transaction;
 
   const TransmitterAddAttachment({
     Key? key,
@@ -39,6 +41,8 @@ class _TransmitterAddAttachmentState extends State<TransmitterAddAttachment> {
   String? _fileName;
   PlatformFile? _pickedFile;
   bool _isLoading = false;
+  double _uploadProgress = 0.0;
+  final TransmitterAPI _apiService = TransmitterAPI();
 
   void _onItemTapped(int index) {
     if (_selectedIndex == index) return;
@@ -64,115 +68,46 @@ class _TransmitterAddAttachmentState extends State<TransmitterAddAttachment> {
   }
 
   Future<void> _pickFile() async {
-    developer.log('Picking file...');
-    FilePickerResult? result =
-        await FilePicker.platform.pickFiles(allowMultiple: true);
-
-    if (result != null && result.files.isNotEmpty) {
-      setState(() {
-        for (var file in result.files) {
-          String fileName = file.name ?? 'Unknown';
-          String sanitizedFileName = sanitizeFileName(fileName);
-          attachments.add({
-            'name': sanitizedFileName,
-            'status': 'Selected',
-            'bytes': file.bytes,
-            'size': file.size,
-          });
-        }
-      });
-      developer.log('Files picked: ${result.files.length}');
-    } else {
-      developer.log('File picking cancelled');
-    }
-  }
-
-  Future<void> _uploadFile(PlatformFile pickedFile) async {
-    setState(() {
-      _isLoading = true; // Show loading indicator
-    });
-
-    try {
-      var request = http.MultipartRequest(
-        'POST',
-        Uri.parse(
-            'http://192.168.131.94/localconnect/UserUploadUpdate/upload_asset.php'),
-      );
-
-      // Add the 'doc_type', 'doc_no', and 'date_trans' fields to the request
-      request.fields['doc_type'] = widget.transaction.docType.toString();
-      request.fields['doc_no'] = widget.transaction.docNo.toString();
-      request.fields['date_trans'] = widget.transaction.dateTrans.toString();
-
-      // Sanitize the filename
-      String sanitizedFileName = sanitizeFileName(pickedFile.name);
-
-      // Add the file to the request
-      request.files.add(
-        http.MultipartFile.fromBytes(
-          'file',
-          pickedFile.bytes!,
-          filename: sanitizedFileName,
-        ),
-      );
-
-      developer.log('Uploading file: ${pickedFile.name}');
-      var response = await request.send();
-
-      if (response.statusCode == 200) {
-        var responseBody = await response.stream.bytesToString();
-        developer.log('Upload response: $responseBody');
-
-        try {
-          var result = jsonDecode(responseBody);
-          if (result['status'] == 'success') {
-            setState(() {
-              attachments.removeWhere(
-                  (element) => element['name'] == sanitizedFileName);
-              attachments
-                  .add({'name': sanitizedFileName, 'status': 'Uploaded'});
-              developer.log('Attachments array after uploading: $attachments');
-            });
-
-            // Show success dialog or handle success scenario
-          } else {
-            _showDialog(
-              context,
-              'Error',
-              'File upload failed: ${result['message']}',
-            );
-            developer.log('File upload failed: ${result['message']}');
-          }
-        } catch (e) {
-          _showDialog(
-            context,
-            'Error',
-            'Error uploading file. Please try again later.',
-          );
-          developer.log('Error parsing upload response: $e');
-        }
-      } else {
-        _showDialog(
-          context,
-          'Error',
-          'File upload failed with status: ${response.statusCode}',
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Select a file source'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              ListTile(
+                leading: const Icon(Icons.camera_alt),
+                title: const Text('Camera'),
+                onTap: () async {
+                  Navigator.pop(context);
+                  await _pickFromCamera();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_album),
+                title: const Text('Images'),
+                onTap: () async {
+                  Navigator.pop(context);
+                  await _pickFromImages();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.folder),
+                title: const Text('Local Storage'),
+                onTap: () async {
+                  Navigator.pop(context);
+                  await _pickFromLocalStorage();
+                },
+              ),
+            ],
+          ),
         );
-        developer.log('File upload failed with status: ${response.statusCode}');
-      }
-    } catch (e) {
-      developer.log('Error uploading file: $e');
-      _showDialog(
-        context,
-        'Error',
-        'Error uploading file. Please try again later.',
-      );
-    } finally {
-      setState(() {
-        _isLoading = false; // Hide loading indicator
-      });
-    }
+      },
+    );
   }
-    Future<Uint8List> _compressImage(Uint8List imageData) async {
+
+  Future<Uint8List> _compressImage(Uint8List imageData) async {
     img.Image? image = img.decodeImage(imageData);
     if (image != null) {
       img.Image resizedImage = img.copyResize(image, width: 800);
@@ -196,7 +131,7 @@ class _TransmitterAddAttachmentState extends State<TransmitterAddAttachment> {
           'status': 'Selected',
           'bytes': compressedImageData,
           'size': compressedImageData.length,
-          'isLoading': true, // Start loading state
+          'isLoading': true,
           'isUploading': false,
           'uploadProgress': 0.0,
         });
@@ -213,6 +148,132 @@ class _TransmitterAddAttachmentState extends State<TransmitterAddAttachment> {
       developer.log('File picked from camera: $fileName');
     } else {
       developer.log('Camera picking cancelled');
+    }
+  }
+
+  Future<void> _pickFromImages() async {
+    final ImagePicker picker = ImagePicker();
+    final List<XFile>? images = await picker.pickMultiImage();
+
+    if (images != null && images.isNotEmpty) {
+      for (var image in images) {
+        String fileName = sanitizeFileName(image.name);
+        Uint8List imageData = await image.readAsBytes();
+        Uint8List compressedImageData = await _compressImage(imageData);
+
+        setState(() {
+          attachments.add({
+            'name': fileName,
+            'status': 'Selected',
+            'bytes': compressedImageData,
+            'size': compressedImageData.length,
+            'isLoading': true, // Start loading state
+            'isUploading': false,
+            'uploadProgress': 0.0,
+          });
+        });
+
+        Future.delayed(Duration(seconds: 1), () {
+          setState(() {
+            attachments[attachments.length - 1]['isLoading'] =
+                false; // End loading state
+          });
+        });
+
+        developer.log('File picked from images: $fileName');
+      }
+    } else {
+      developer.log('Image picking cancelled');
+    }
+  }
+
+  Future<void> _pickFromLocalStorage() async {
+    FilePickerResult? result =
+        await FilePicker.platform.pickFiles(allowMultiple: true);
+
+    if (result != null && result.files.isNotEmpty) {
+      for (var file in result.files) {
+        String fileName = sanitizeFileName(file.name ?? 'Unknown');
+        Uint8List? fileBytes = file.bytes;
+        if (fileBytes != null) {
+          Uint8List compressedImageData = await _compressImage(fileBytes);
+
+          setState(() {
+            attachments.add({
+              'name': fileName,
+              'status': 'Selected',
+              'bytes': compressedImageData,
+              'size': compressedImageData.length,
+              'isLoading': true, // Start loading state
+              'isUploading': false,
+              'uploadProgress': 0.0,
+            });
+          });
+
+          // Simulate loading time for demo purposes
+          Future.delayed(Duration(seconds: 1), () {
+            setState(() {
+              attachments[attachments.length - 1]['isLoading'] =
+                  false; // End loading state
+            });
+          });
+
+          developer.log('File picked: $fileName');
+        }
+      }
+    } else {
+      developer.log('File picking cancelled');
+    }
+  }
+
+  Future<void> _uploadFile(PlatformFile pickedFile) async {
+    setState(() {
+      _isLoading = true; // Show loading indicator
+    });
+
+    try {
+      var result = await TransmitterAPI().uploadFileUploader(
+        docType: widget.transaction.docType.toString(),
+        docNo: widget.transaction.docNo.toString(),
+        dateTrans: widget.transaction.dateTrans.toString(),
+        fileName: sanitizeFileName(pickedFile.name),
+        fileBytes: pickedFile.bytes!,
+      );
+
+      if (result['success']) {
+        setState(() {
+          attachments
+              .removeWhere((element) => element['name'] == pickedFile.name);
+          attachments.add({'name': pickedFile.name, 'status': 'Uploaded'});
+          developer.log('Attachments array after uploading: $attachments');
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result['message']),
+          ),
+        );
+
+        // Show success dialog or handle success scenario
+      } else {
+        _showDialog(
+          context,
+          'Error',
+          result['message'],
+        );
+        developer.log('File upload failed: ${result['message']}');
+      }
+    } catch (e) {
+      developer.log('Error uploading file: $e');
+      _showDialog(
+        context,
+        'Error',
+        'Error uploading file. Please try again later.',
+      );
+    } finally {
+      setState(() {
+        _isLoading = false; // Hide loading indicator
+      });
     }
   }
 
@@ -234,33 +295,31 @@ class _TransmitterAddAttachmentState extends State<TransmitterAddAttachment> {
     );
   }
 
-  void _showUploadDialog() {
+  void _showImageDialog(Uint8List imageBytes, Map<String, dynamic> attachment) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text('Select Option'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.camera_alt),
-                title: const Text('Camera'),
-                onTap: () async {
-                  Navigator.pop(context);
-                 await _pickFromCamera();
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.upload_file),
-                title: const Text('Upload from File'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _pickFile();
-                },
-              ),
-            ],
+          title: Text('File Name: ${attachment['name']}'),
+          content: SizedBox(
+            width: MediaQuery.of(context).size.width * 0.9, // Adjust the width
+            height:
+                MediaQuery.of(context).size.height * 0.7, // Adjust the height
+            child: InteractiveViewer(
+              child: Image.memory(imageBytes),
+              boundaryMargin: EdgeInsets.zero,
+              minScale: 0.1,
+              maxScale: 3.0,
+            ),
           ),
+          actions: [
+            TextButton(
+              child: const Text('Close'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
         );
       },
     );
@@ -280,7 +339,7 @@ class _TransmitterAddAttachmentState extends State<TransmitterAddAttachment> {
             Row(
               children: [
                 Image.asset(
-                  'logo.png',
+                  'assets/logo.png',
                   width: 60,
                   height: 55,
                 ),
@@ -332,168 +391,207 @@ class _TransmitterAddAttachmentState extends State<TransmitterAddAttachment> {
       ),
       body: Column(
         children: [
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Add Attachment',
-                    style: TextStyle(
-                      fontSize: 24.0,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 20.0),
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      elevation: 10,
-                      backgroundColor: Colors.grey[200],
-                      padding: const EdgeInsets.all(24.0),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16.0),
+          Container(height: 25),
+          Container(
+            width: screenSize.width - 50,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                elevation: 10,
+                backgroundColor: Colors.grey[200],
+                padding: const EdgeInsets.all(24.0),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16.0),
+                ),
+              ),
+              onPressed: _pickFile,
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: const [
+                    Text(
+                      'Click to upload',
+                      style: TextStyle(
+                        fontSize: 20.0,
                       ),
                     ),
-                    onPressed: _showUploadDialog,
-                    child: Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: const [
-                          Text(
-                            'Click to upload',
-                            style: TextStyle(
-                              fontSize: 20.0,
-                            ),
-                          ),
-                          SizedBox(height: 12.0),
-                          Text(
-                            'Max. File Size: 50Mb',
-                            style: TextStyle(
-                              fontSize: 16.0,
-                              color: Colors.grey,
-                            ),
-                          ),
-                        ],
+                    SizedBox(height: 12.0),
+                    Text(
+                      'Max. File Size: 5Mb',
+                      style: TextStyle(
+                        fontSize: 16.0,
+                        color: Colors.grey,
                       ),
                     ),
-                  ),
-                  if (_fileName != null)
-                    Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: Text('Selected file: $_fileName'),
-                    ),
-                  const SizedBox(height: 20.0),
-                  Container(
-                    height: screenSize.height * 0.45, // Set a fixed height to display more items
-                    child: SingleChildScrollView(
-                      child: Column(
-                        children: [
-                          for (var attachment in attachments)
-                            if (attachment['name'] != null &&
-                                attachment['bytes'] != null &&
-                                attachment['size'] != null)
-                              Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 5.0),
-                                child: _buildAttachmentItem(
-                                  attachment['name'],
-                                  attachment['status'],
-                                  attachment['bytes'],
-                                ),
-                              ),
-                        ],
-                      ),
-                    ),
-                  ),
-    
-
-                  const Spacer(),
-                  Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        ElevatedButton(
-                          onPressed: () {
-                            setState(() {
-                              attachments.clear();
-                            });
-                            Navigator.pop(context);
-                            developer.log('Discard button pressed');
-                          },
-                          child: const Text('Discard'),
-                        ),
-                        ElevatedButton(
-                          onPressed: () {
-                            List<Map<String, String>> attachmentsString =
-                                attachments
-                                    .map((attachment) => attachment.map(
-                                          (key, value) =>
-                                              MapEntry(key, value.toString()),
-                                        ))
-                                    .toList();
-
-                            for (var attachment in attachmentsString) {
-                              if (attachment['name'] == null ||
-                                  attachment['name']!.isEmpty) {
-                                developer.log(
-                                    'Error: attachment name is null or empty');
-                                return;
-                              }
-
-                              if (attachment['bytes'] == null) {
-                                developer
-                                    .log('Error: attachment bytes are null');
-                                return;
-                              }
-
-                              if (attachment['size'] == null ||
-                                  attachment['size']!.isEmpty ||
-                                  int.parse(attachment['size']!) <= 0) {
-                                developer.log(
-                                    'Error: attachment size is null or invalid');
-                                return;
-                              }
-                            }
-
-                            for (var attachment in attachments) {
-                              _uploadFile(PlatformFile(
-                                name: attachment['name'],
-                                size: attachment['size'],
-                                bytes: attachment['bytes'],
-                              ));
-                            }
-
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => TransmitterSendAttachment(
-                                  transaction: widget.transaction,
-                                  selectedDetails: [],
-                                  attachments: attachmentsString,
-                                  secAttachments: [],
-                                ),
-                              ),
-                            );
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor:
-                                const Color.fromARGB(255, 79, 129, 189),
-                          ),
-                          child: const Text('Attach File'),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (_isLoading) // Show loading indicator when uploading
-                    const Center(
-                      child: CircularProgressIndicator(),
-                    ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
+          SizedBox(height: 12.0),
+          Expanded(
+            child: ListView.builder(
+              itemCount: attachments.length,
+              itemBuilder: (context, index) {
+                var attachment = attachments[index];
+                Uint8List? bytes = attachment['bytes'] as Uint8List?;
+                int sizeInBytes = bytes?.lengthInBytes ?? 0;
+                String sizeString;
+
+                if (sizeInBytes >= 1048576) {
+                  // Size in MB
+                  double sizeInMB = sizeInBytes / 1048576;
+                  sizeString = '${sizeInMB.toStringAsFixed(2)} MB';
+                } else if (sizeInBytes >= 1024) {
+                  // Size in KB
+                  double sizeInKB = sizeInBytes / 1024;
+                  sizeString = '${sizeInKB.toStringAsFixed(2)} KB';
+                } else {
+                  // Size in bytes
+                  sizeString = '$sizeInBytes bytes';
+                }
+
+                bool isLoading = attachment['isLoading'] ?? false;
+                bool isUploading = attachment['isUploading'] ?? false;
+                double uploadProgress =
+                    (attachment['uploadProgress'] ?? 0).toDouble();
+
+                return Card(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10.0),
+                    // Rounded corners
+                    side: BorderSide(color: Colors.blue, width: 2), // Border
+                  ),
+                  child: ListTile(
+                    leading: isLoading
+                        ? const CircularProgressIndicator()
+                        : (bytes != null
+                            ? Image.memory(
+                                bytes,
+                                width: 50,
+                                height: 50,
+                                fit: BoxFit.cover,
+                              )
+                            : const Icon(Icons.image_not_supported)),
+                    title: Text(attachment['name']),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Size: $sizeString'),
+                        if (isUploading)
+                          LinearProgressIndicator(
+                            value: uploadProgress / 100,
+                            minHeight: 5,
+                            color: Colors.green,
+                            backgroundColor: Colors.grey[200],
+                          ),
+                      ],
+                    ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.zoom_in),
+                          onPressed: () {
+                            if (bytes != null) {
+                              _showImageDialog(bytes, attachment);
+                            }
+                          },
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete),
+                          onPressed: () {
+                            setState(() {
+                              attachments.removeAt(index);
+                            });
+                          },
+                        ),
+                      ],
+                    ),
+                    onTap: () {
+                      if (!isUploading && !isLoading && bytes != null) {
+                        _showImageDialog(bytes, attachment);
+                      }
+                    },
+                  ),
+                );
+              },
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                ElevatedButton(
+                  onPressed: () {
+                    setState(() {
+                      attachments.clear();
+                    });
+                    Navigator.pop(context);
+                    developer.log('Discard button pressed');
+                  },
+                  child: const Text('Discard'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    List<Map<String, String>> attachmentsString = attachments
+                        .map((attachment) => attachment.map(
+                              (key, value) => MapEntry(key, value.toString()),
+                            ))
+                        .toList();
+
+                    for (var attachment in attachmentsString) {
+                      if (attachment['name'] == null ||
+                          attachment['name']!.isEmpty) {
+                        developer
+                            .log('Error: attachment name is null or empty');
+                        return;
+                      }
+
+                      if (attachment['bytes'] == null) {
+                        developer.log('Error: attachment bytes are null');
+                        return;
+                      }
+
+                      if (attachment['size'] == null ||
+                          attachment['size']!.isEmpty ||
+                          int.parse(attachment['size']!) <= 0) {
+                        developer
+                            .log('Error: attachment size is null or invalid');
+                        return;
+                      }
+                    }
+                    for (var attachment in attachments) {
+                      _uploadFile(PlatformFile(
+                        name: attachment['name'],
+                        size: attachment['size'],
+                        bytes: attachment['bytes'],
+                      ));
+                    }
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => TransmitterSendAttachment(
+                          transaction: widget.transaction,
+                          selectedDetails: [],
+                          attachments: attachmentsString,
+                          secAttachments: [],
+                        ),
+                      ),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color.fromARGB(255, 79, 129, 189),
+                  ),
+                  child: const Text('Attach File'),
+                ),
+              ],
+            ),
+          ),
+          if (_isLoading) // Show loading indicator when uploading
+            const Center(
+              child: CircularProgressIndicator(),
+            ),
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(
@@ -515,66 +613,6 @@ class _TransmitterAddAttachmentState extends State<TransmitterAddAttachment> {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildAttachmentItem(
-      String? fileName, String? status, Uint8List? bytes) {
-    if (fileName == null || status == null || bytes == null) return Container();
-
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(8.0),
-          decoration: BoxDecoration(
-            color: Colors.grey[300],
-            borderRadius: BorderRadius.circular(4.0),
-          ),
-          child: Image.memory(
-            bytes,
-            width: 50,
-            height: 50,
-            fit: BoxFit.cover,
-          ),
-        ),
-        const SizedBox(width: 16.0),
-        Expanded(
-          // Ensure the filename can wrap within the available space
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                fileName,
-                style: const TextStyle(
-                  fontSize: 16.0,
-                ),
-                overflow:
-                    TextOverflow.ellipsis, // Ellipsis if filename is too long
-                maxLines: 1, // Constrain to one line
-                softWrap: false, // Prevent wrapping to the next line
-              ),
-              Text(
-                status,
-                style: const TextStyle(
-                  fontSize: 12.0,
-                  color: Colors.grey,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const Spacer(),
-        IconButton(
-          onPressed: () {
-            setState(() {
-              attachments.removeWhere((element) => element['name'] == fileName);
-              developer.log('Attachment removed: $fileName');
-              developer.log('Attachments array after removing: $attachments');
-            });
-          },
-          icon: const Icon(Icons.close),
-        ),
-      ],
     );
   }
 }

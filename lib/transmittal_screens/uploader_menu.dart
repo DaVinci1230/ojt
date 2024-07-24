@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
+import '../models/user_transaction.dart';
 import '/loginScreen.dart';
 import 'fetching_uploader_data.dart';
-import 'no_support_uploader.dart';
+import 'transmittal_notification.dart';
 import 'transmitter_history.dart';
+import 'package:intl/intl.dart';
+import '/api_services/transmitter_api.dart';	
+import 'package:badges/badges.dart' as badges;
+import 'package:badges/badges.dart';
 class UploaderMenuWindow extends StatefulWidget {
   const UploaderMenuWindow({Key? key}) : super(key: key);
 
@@ -11,7 +16,9 @@ class UploaderMenuWindow extends StatefulWidget {
 }
 
 class _MenuState extends State<UploaderMenuWindow> {
-  int _selectedIndex = 2;
+  int _selectedIndex = 1;
+   int notificationCount = 0;
+  final TransmitterAPI _apiService = TransmitterAPI();
 
   void _onItemTapped(int index) {
     if (_selectedIndex == index) return;
@@ -27,18 +34,33 @@ class _MenuState extends State<UploaderMenuWindow> {
           MaterialPageRoute(builder: (context) => const fetchUpload()),
         );
         break;
+     
       case 1:
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const UploaderNoSupport()),
-        );
-        break;
-      case 2:
         // Navigator.pushReplacement(
         //   context,
         //   MaterialPageRoute(builder: (context) => const UploaderMenuWindow()),
         // );
         break;
+    }
+  }
+
+  
+Future<void> _countNotif() async {
+    try {
+      List<UserTransaction> transactions = await _apiService.fetchTransactionDetails();
+      setState(() {
+        notificationCount = transactions
+            .where((transaction) =>
+           transaction.onlineProcessingStatus == 'U' ||
+           transaction.onlineProcessingStatus == 'ND' ||
+           transaction.onlineProcessingStatus == 'R' ||
+                transaction.onlineProcessingStatus == 'TND' ||
+                transaction.onlineProcessingStatus == 'T' &&
+                    transaction.notification == 'N')
+            .length;
+      });
+    } catch (e) {
+      throw Exception('Failed to fetch transaction details: $e');
     }
   }
   @override
@@ -57,7 +79,7 @@ class _MenuState extends State<UploaderMenuWindow> {
             Row(
               children: [
                 Image.asset(
-                  'logo.png',
+                  'assets/logo.png',
                   width: screenSize.width * 0.15, 
                   height: screenSize.height * 0.1,
                 ),
@@ -71,18 +93,28 @@ class _MenuState extends State<UploaderMenuWindow> {
                 ),
               ],
             ),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                Container(
-                  margin: EdgeInsets.only(right: screenSize.width * 0.02),
+             Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              Container(
+                margin: EdgeInsets.only(right: screenSize.width * 0.02),
+                child: badges.Badge(
+                  badgeContent: Text(
+                    '$notificationCount',  // Display the number of notifications
+                    style: TextStyle(color: Colors.white),
+                  ),
+                  badgeStyle: BadgeStyle(
+                    badgeColor: Colors.red,
+                    padding: EdgeInsets.all(6),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                   child: IconButton(
                     onPressed: () {
-                      // Navigator.push(
-                      //   context,
-                      //   MaterialPageRoute(
-                      //       builder: (context) => NotificationScreen()),
-                      // );
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (context) => TransmittalNotification()),
+                      );
                     },
                     icon: const Icon(
                       Icons.notifications,
@@ -91,16 +123,26 @@ class _MenuState extends State<UploaderMenuWindow> {
                     ),
                   ),
                 ),
-                IconButton(
-                  onPressed: () {},
-                  icon: const Icon(
-                    Icons.person,
-                    size: 24,
-                    color: Color.fromARGB(255, 233, 227, 227),
-                  ),
+              ),
+              IconButton(
+                onPressed: () {
+                  // Navigator.pushReplacement(
+                  //   context,
+                  //   MaterialPageRoute(
+                  //       builder: (context) => const UploaderMenuWindow()),
+                  // );
+                },
+                icon: const Icon(
+                  Icons.person,
+                  size: 24,
+                  color: Color.fromARGB(255, 233, 227, 227),
                 ),
-              ],
-            ),
+              ),
+            ],
+          ),
+
+
+
           ],
         ),
       ),
@@ -166,16 +208,12 @@ class _MenuState extends State<UploaderMenuWindow> {
               SizedBox(
                 height: screenSize.height * 0.025,
               ),
-                InkWell(
+               InkWell(
                 onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => TransmitterHistory(),
-                    ),
-                  );
+                  _showFilterDialog(context);
                 },
-                child: _buildOption(screenSize, Icons.fact_check_outlined, 'History'),
+                child: _buildOption(
+                    screenSize, Icons.fact_check_outlined, 'History'),
               ),
               _buildOption(screenSize, Icons.fingerprint_rounded, 'Biometrics'),
               _buildOption(screenSize, Icons.security, 'Change Password'),
@@ -203,10 +241,7 @@ class _MenuState extends State<UploaderMenuWindow> {
             icon: Icon(Icons.upload_file_outlined),
             label: 'Upload',
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.task_sharp),
-            label: 'No Support',
-          ),
+        
           BottomNavigationBarItem(
             icon: Icon(Icons.menu_sharp),
             label: 'Menu',
@@ -247,6 +282,146 @@ class _MenuState extends State<UploaderMenuWindow> {
           ),
         ],
       ),
+    );
+  }
+  
+  Future<void> _showFilterDialog(BuildContext context) async {
+    String selectedFilter = 'All';
+    DateTime startDate = DateTime(DateTime.now().year, DateTime.now().month, 1);
+    DateTime endDate = DateTime.now();
+    bool isOldestFirst = false;
+
+    // Calculate dialog width based on screen size
+    double dialogWidth = MediaQuery.of(context).size.width * 0.8;
+
+    await showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: Text('Set Filters'),
+              content: Container(
+                width: dialogWidth,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('Filter:'),
+                        Expanded(
+                          child: Align(
+                            alignment: Alignment.centerRight,
+                            child: DropdownButton<String>(
+                              value: selectedFilter,
+                              onChanged: (String? newValue) {
+                                setState(() {
+                                  selectedFilter = newValue!;
+                                });
+                              },
+                              items: <String>[
+                                'All',
+                                'Approved',
+                                'Rejected',
+                                'Returned',
+                                'On Process'
+                              ].map<DropdownMenuItem<String>>((String value) {
+                                return DropdownMenuItem<String>(
+                                  value: value,
+                                  child: Text(value),
+                                );
+                              }).toList(),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 10),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('Start Date:'),
+                        ElevatedButton(
+                          onPressed: () async {
+                            final DateTime? picked = await showDatePicker(
+                              context: context,
+                              initialDate: startDate,
+                              firstDate: DateTime(2000),
+                              lastDate: DateTime(2101),
+                            );
+                            if (picked != null) {
+                              setState(() {
+                                startDate = picked;
+                              });
+                            }
+                          },
+                          child: Text(
+                              DateFormat('MMM dd, yyyy').format(startDate)),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 10),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('End Date:'),
+                        ElevatedButton(
+                          onPressed: () async {
+                            final DateTime? picked = await showDatePicker(
+                              context: context,
+                              initialDate: endDate,
+                              firstDate: DateTime(2000),
+                              lastDate: DateTime(2101),
+                            );
+                            if (picked != null) {
+                              setState(() {
+                                endDate = picked;
+                              });
+                            }
+                          },
+                          child:
+                              Text(DateFormat('MMM dd, yyyy').format(endDate)),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 10),
+                    CheckboxListTile(
+                      title: Text('Oldest First'),
+                      value: isOldestFirst,
+                      onChanged: (bool? newValue) {
+                        setState(() {
+                          isOldestFirst = newValue ?? false;
+                        });
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              actions: <Widget>[
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => TransmitterHistory(
+                          selectedFilter: selectedFilter,
+                          startDate: startDate,
+                          endDate: endDate,
+                          isOldestFirst: isOldestFirst,
+                        ),
+                      ),
+                    );
+                  },
+                  child: Text('Apply'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 }

@@ -4,9 +4,10 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../models/user_transaction.dart';
 import '/admin_screens/view_attachments.dart';
+import '../../api_services/api_services.dart';
 
 class MarkCardHistory extends StatefulWidget {
-  final Transaction transaction;
+  final UserTransaction transaction;
 
   const MarkCardHistory({
     Key? key,
@@ -24,6 +25,7 @@ class _MarkCardHistoryState extends State<MarkCardHistory>
   late AnimationController _controller;
   bool _showDetails = false;
   List<Map<String, dynamic>> _checkDetails = [];
+  final ApiService _apiService = ApiService();
 
   @override
   void initState() {
@@ -36,58 +38,50 @@ class _MarkCardHistoryState extends State<MarkCardHistory>
     _fetchFileNameAndPath();
   }
 
-  Future<void> _fetchCheckDetails(String docNo, String docType) async {
-    try {
-      final response = await http.get(Uri.parse(
-          'http://192.168.131.94/localconnect/view_details.php?doc_no=$docNo&doc_type=$docType'));
+Future<void> _fetchCheckDetails(String docNo, String docType) async {
+  try {
+    final data = await _apiService.fetchCheckDetails(docNo, docType);
 
-      if (response.statusCode == 200) {
-        List<dynamic> data = json.decode(response.body);
-        if (mounted) {
-          setState(() {
-            _checkDetails = List<Map<String, dynamic>>.from(data);
-          });
-        }
-      } else {
-        throw Exception('Failed to fetch check details');
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error fetching check details: $e')),
-        );
-      } else {
-        print('Error fetching check details: $e');
-      }
+    if (!mounted) return; // Check if the widget is still mounted
+
+    setState(() {
+      _checkDetails = List<Map<String, dynamic>>.from(data);
+    });
+  } catch (e) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error fetching check details: $e')),
+      );
+    } else {
+      print('Error fetching check details: $e');
     }
   }
+}
 
-  Future<void> _fetchFileNameAndPath() async {
-    try {
-      final response = await http.get(Uri.parse(
-          'http://192.168.131.94/localconnect/get_file.php?doc_no=${widget.transaction.docNo}&doc_type=${widget.transaction.docType}'));
 
-      if (response.statusCode == 200) {
-        Map<String, dynamic> data = json.decode(response.body);
-        if (mounted) {
-          setState(() {
-            fileName = data['file_name'];
-            filePath = data['file_path'];
-          });
-        }
-      } else {
-        throw Exception('Failed to fetch file details');
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error fetching file details: $e')),
-        );
-      } else {
-        print('Error fetching file details: $e');
-      }
+Future<void> _fetchFileNameAndPath() async {
+  try {
+    final data = await _apiService.fetchFileNameAndPath(
+      widget.transaction.docNo,
+      widget.transaction.docType,
+    );
+
+    if (!mounted) return; // Check if the widget is still mounted
+
+    setState(() {
+      fileName = data['file_name'];
+      filePath = data['file_path'];
+    });
+  } catch (e) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error fetching file details: $e')),
+      );
+    } else {
+      print('Error fetching file details: $e');
     }
   }
+}
 
   Widget _buildCheckDetailsTable(List<Map<String, dynamic>> checkDetailsList) {
     List<TableRow> rows = [];

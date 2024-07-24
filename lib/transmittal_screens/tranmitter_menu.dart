@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import '/loginScreen.dart';
+import 'fetching_transmital_data.dart';
 import 'no_support_transmit.dart';
-import 'transmitter_upload.dart';
+
 class TransmitMenuWindow extends StatefulWidget {
   const TransmitMenuWindow({Key? key}) : super(key: key);
 
@@ -23,7 +24,7 @@ class _MenuState extends State<TransmitMenuWindow> {
       case 0:
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const transmitterUpload()),
+          MaterialPageRoute(builder: (context) => const TransmittalHomePage()),
         );
         break;
       case 1:

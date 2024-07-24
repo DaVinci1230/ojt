@@ -1,12 +1,15 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import '/admin_screens/approver_notification.dart';
 import '../models/admin_transaction.dart';
 import '../widgets/card.dart';
-import 'notifications.dart';
 import 'admin_homepage.dart';
 import 'admin_menu_window.dart';
 import 'package:intl/intl.dart';
+import 'package:badges/badges.dart' as badges;
+import 'package:badges/badges.dart';
+import '../api_services/api_services_admin.dart';
 
 class DisbursementCheque extends StatefulWidget {
   const DisbursementCheque({Key? key}) : super(key: key);
@@ -16,6 +19,7 @@ class DisbursementCheque extends StatefulWidget {
 }
 
 mixin SelectionMixin<T extends StatefulWidget> on State<T> {
+  int notificationCount = 0;
   bool _selectAllTabT = false;
   bool _selectAllTabTnd = false;
 
@@ -39,14 +43,16 @@ class _DisbursementChequeState extends State<DisbursementCheque>
   late TabController _tabController;
   late Future<List<Transaction>> _transactionsFutureT;
   late Future<List<Transaction>> _transactionsFutureTnd;
+  List<Transaction> selectedTransactions = [];
   double _totalSelectedAmount = 0.0;
-
+  final ApiServiceAdmin _apiServiceAdmin = ApiServiceAdmin();
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    _transactionsFutureT = _fetchTransactionDetails('T');
-    _transactionsFutureTnd = _fetchTransactionDetails('TND');
+    _transactionsFutureT = _fetchTransactionDetailsDisbursement('T');
+    _transactionsFutureTnd = _fetchTransactionDetailsDisbursement('TND');
+    _countNotif();
   }
 
   String getCurrentDate() {
@@ -54,48 +60,62 @@ class _DisbursementChequeState extends State<DisbursementCheque>
     return "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
   }
 
-  Future<List<Transaction>> _fetchTransactionDetails(
+  Future<List<Transaction>> _fetchTransactionDetailsDisbursement(
       String onlineTransactionStatus) async {
     try {
-      var url = Uri.parse(
-          'http://192.168.131.94/localconnect/get_transaction.php?onlineTransactionStatus=$onlineTransactionStatus');
-      var response = await http.get(url);
+      List<Transaction> fetchedTransactions = await _apiServiceAdmin
+          .fetchTransactionDetailsDisbusrsement(onlineTransactionStatus);
 
-      if (response.statusCode == 200) {
-        var jsonData = jsonDecode(response.body);
-        if (jsonData is List) {
-          List<Transaction> fetchedTransactions = jsonData
-              .map((transaction) => Transaction.fromJson(transaction))
-              .toList();
-
-          // Sort transactions by onlineProcessDate descending
-          fetchedTransactions.sort(
-              (a, b) => b.onlineProcessDate.compareTo(a.onlineProcessDate));
-
-          setState(() {
-            if (onlineTransactionStatus == 'T') {
-              pendingCountT = fetchedTransactions
-                  .where((transaction) =>
-                      transaction.onlineTransactionStatus == 'T')
-                  .length;
-            } else if (onlineTransactionStatus == 'TND') {
-              pendingCountTnd = fetchedTransactions
-                  .where((transaction) =>
-                      transaction.onlineTransactionStatus == 'TND')
-                  .length;
-            }
-          });
-
-          return fetchedTransactions;
-        } else {
-          throw Exception('Unexpected response format');
+      setState(() {
+        if (onlineTransactionStatus == 'T') {
+          pendingCountT = fetchedTransactions
+              .where(
+                  (transaction) => transaction.onlineTransactionStatus == 'T')
+              .length;
+        } else if (onlineTransactionStatus == 'TND') {
+          pendingCountTnd = fetchedTransactions
+              .where(
+                  (transaction) => transaction.onlineTransactionStatus == 'TND')
+              .length;
         }
-      } else {
-        throw Exception(
-            'Failed to load transaction details: ${response.statusCode}');
-      }
+      });
+
+      return fetchedTransactions;
     } catch (e) {
       throw Exception('Failed to fetch transaction details: $e');
+    }
+  }
+
+  Future<void> _countNotif() async {
+    try {
+      List<Transaction> transactions =
+          await _apiServiceAdmin.fetchTransactionDetails();
+
+      setState(() {
+        notificationCount = transactions
+            .where((transaction) =>
+                transaction.onlineTransactionStatus == 'TND' ||
+                transaction.onlineTransactionStatus == 'T' &&
+                    transaction.notification == 'N')
+            .length;
+      });
+    } catch (e) {
+      throw Exception('Failed to fetch transaction details: $e');
+    }
+  }
+
+  Future<void> _returnTransaction(
+      List<Transaction> transactions, String approverRemarks) async {
+    try {
+      await _apiServiceAdmin.returnTransactions(transactions, approverRemarks);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Transactions returned successfully')),
+      );
+    } catch (e) {
+      print('Error returning transactions: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error returning transactions: $e')),
+      );
     }
   }
 
@@ -130,11 +150,19 @@ class _DisbursementChequeState extends State<DisbursementCheque>
       _selectAllTabT = newValue;
     });
 
-    // Update all transactions in Tab T
-    _updateSelectedTransactions(_transactionsFutureT, newValue, true);
-
-    // Update total selected amount
-    _calculateSelectedAmount(_transactionsFutureT);
+    _transactionsFutureT.then((transactions) {
+      for (var transaction in transactions) {
+        if (transaction.onlineTransactionStatus == 'T') {
+          transaction.isSelected = newValue;
+          if (newValue && !selectedTransactions.contains(transaction)) {
+            selectedTransactions.add(transaction);
+          } else if (!newValue && selectedTransactions.contains(transaction)) {
+            selectedTransactions.remove(transaction);
+          }
+        }
+      }
+      _calculateSelectedAmount(_transactionsFutureT);
+    });
   }
 
   void _toggleSelectAllTabTnd() {
@@ -143,16 +171,32 @@ class _DisbursementChequeState extends State<DisbursementCheque>
       _selectAllTabTnd = newValue;
     });
 
-    // Update all transactions in Tab Tnd
-    _updateSelectedTransactions(_transactionsFutureTnd, newValue, false);
-
-    // Update total selected amount
-    _calculateSelectedAmount(_transactionsFutureTnd);
+    _transactionsFutureTnd.then((transactions) {
+      for (var transaction in transactions) {
+        if (transaction.onlineTransactionStatus == 'TND') {
+          transaction.isSelected = newValue;
+          if (newValue && !selectedTransactions.contains(transaction)) {
+            selectedTransactions.add(transaction);
+          } else if (!newValue && selectedTransactions.contains(transaction)) {
+            selectedTransactions.remove(transaction);
+          }
+        }
+      }
+      _calculateSelectedAmount(_transactionsFutureTnd);
+    });
   }
 
   void _toggleSelectTransaction(Transaction transaction, bool isSelected) {
     setState(() {
       transaction.isSelected = isSelected;
+
+      if (isSelected) {
+        if (!selectedTransactions.contains(transaction)) {
+          selectedTransactions.add(transaction);
+        }
+      } else {
+        selectedTransactions.remove(transaction);
+      }
 
       // Update total selected amount
       _calculateSelectedAmount(transaction.onlineTransactionStatus == 'T'
@@ -250,88 +294,48 @@ class _DisbursementChequeState extends State<DisbursementCheque>
     });
   }
 
-  void _rejectTransaction(List<Transaction> transactions) async {
+  void _rejectTransactionsDisbursement(List<Transaction> transactions) async {
     try {
-      for (Transaction transaction in transactions) {
-        final response = await http.post(
-          Uri.parse('http://192.168.131.94/localconnect/reject.php'),
-          body: {
-            'doc_no': transaction.docNo,
-            'doc_type': transaction.docType,
-          },
-        );
+      await _apiServiceAdmin.rejectTransactions(transactions);
 
-        if (response.statusCode == 200) {
-          var responseData = json.decode(response.body);
-          if (responseData['status'] == 'success') {
-            // Handle success message if needed
-            print('Transaction ${transaction.docNo} rejected successfully');
-          } else {
-            throw Exception(
-                'Failed to reject transaction ${transaction.docNo}');
-          }
-        } else {
-          throw Exception('Failed to reject transaction ${transaction.docNo}');
-        }
-      }
-      // Show a single success message if all transactions were successfully rejected
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Transactions rejected successfully')),
       );
+
+      setState(() {
+        _transactionsFutureT = _fetchTransactionDetailsDisbursement('T');
+        _transactionsFutureTnd = _fetchTransactionDetailsDisbursement('TND');
+        _selectAllTabT = false;
+        _selectAllTabTnd = false;
+      });
     } catch (e) {
       print('Error rejecting transactions: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error rejecting transactions: $e')),
       );
     }
-    setState(() {
-      _transactionsFutureT = _fetchTransactionDetails('T');
-      _transactionsFutureTnd = _fetchTransactionDetails('TND');
-      _selectAllTabT = false;
-      _selectAllTabTnd = false;
-    });
   }
 
   void _approvedTransaction(List<Transaction> transactions) async {
     try {
-      for (Transaction transaction in transactions) {
-        final response = await http.post(
-          Uri.parse('http://192.168.131.94/localconnect/approve.php'),
-          body: {
-            'doc_no': transaction.docNo,
-            'doc_type': transaction.docType,
-          },
-        );
+      await _apiServiceAdmin.approveTransactions(transactions);
 
-        if (response.statusCode == 200) {
-          var responseData = json.decode(response.body);
-          if (responseData['status'] == 'success') {
-            // Handle success message if needed
-            print('Transaction ${transaction.docNo} approved successfully');
-          } else {
-            throw Exception(
-                'Failed to approve transaction ${transaction.docNo}');
-          }
-        } else {
-          throw Exception('Failed to approve transaction ${transaction.docNo}');
-        }
-      }
-      // Show a single success message if all transactions were successfully rejected
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Transactions approved successfully')),
       );
+
+      setState(() {
+        _transactionsFutureT = _fetchTransactionDetailsDisbursement('T');
+        _transactionsFutureTnd = _fetchTransactionDetailsDisbursement('TND');
+        _selectAllTabT = false;
+        _selectAllTabTnd = false;
+      });
     } catch (e) {
-      print('Error approve transactions: $e');
+      print('Error approving transactions: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error approve transactions: $e')),
+        SnackBar(content: Text('Error approving transactions: $e')),
       );
     }
-    setState(() {
-      _transactionsFutureT = _fetchTransactionDetails('T');
-      _transactionsFutureTnd = _fetchTransactionDetails('TND');
-      _selectAllTabT = false;
-      _selectAllTabTnd = false;
-    });
   }
 
   void _approvedAllTransaction() {
@@ -354,13 +358,129 @@ class _DisbursementChequeState extends State<DisbursementCheque>
     });
   }
 
+  void _returnAllTransactionDisbursement(List<Transaction> transactions) async {
+    try {
+      await _apiServiceAdmin.rejectTransactions(transactions);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Transactions rejected successfully')),
+      );
+      setState(() {
+        _transactionsFutureT = _fetchTransactionDetailsDisbursement('T');
+        _transactionsFutureTnd = _fetchTransactionDetailsDisbursement('TND');
+        _selectAllTabT = false;
+        _selectAllTabTnd = false;
+      });
+    } catch (e) {
+      print('Error rejecting transactions: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error rejecting transactions: $e')),
+      );
+    }
+  }
+
+  void _returnAllTransactions() {
+    _transactionsFutureT.then((transactions) {
+      List<Transaction> selectedTransactions =
+          transactions.where((transaction) => transaction.isSelected).toList();
+
+      if (selectedTransactions.isNotEmpty) {
+        _returnAllTransactionDisbursement(selectedTransactions);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No transactions selected to reject')),
+        );
+      }
+      setState(() {
+        _selectAllTabT = false;
+      });
+    }).catchError((error) {
+      print('Failed to fetch transactions: $error');
+    });
+  }
+
+  void _showDialog(
+      BuildContext context, List<Transaction> selectedTransactions) {
+    TextEditingController _remarksController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Remarks for Selected Transactions'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Selected Transactions:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              ...selectedTransactions
+                  .map((transaction) =>
+                      Text('${transaction.docNo} - ${transaction.docType}'))
+                  .toList(),
+              SizedBox(height: 10),
+              TextField(
+                controller: _remarksController,
+                decoration: InputDecoration(
+                  hintText: 'Enter your remarks here',
+                ),
+              ),
+            ],
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: Text('Cancel'),
+              onPressed: () {
+                Navigator.of(context).pop(); // Close the dialog
+              },
+            ),
+            ElevatedButton(
+              child: Text('Send'),
+              onPressed: () {
+                String remarks = _remarksController.text.trim();
+                if (remarks.isNotEmpty) {
+                  print('Remarks: $remarks');
+                  _returnTransaction(selectedTransactions, remarks).then((_) {
+                    Navigator.of(context)
+                        .pop(); // Close the dialog after successful transaction
+
+                    // Refresh the transactions after returning
+                    setState(() {
+                      _transactionsFutureT =
+                          _fetchTransactionDetailsDisbursement('T');
+                      _transactionsFutureTnd =
+                          _fetchTransactionDetailsDisbursement('TND');
+                    });
+                  }).catchError((error) {
+                    print('Error updating remarks: $error');
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Error updating remarks: $error'),
+                      ),
+                    );
+                  });
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Remarks cannot be empty'),
+                    ),
+                  );
+                }
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   void _rejectAllTransactions() {
     _transactionsFutureT.then((transactions) {
       List<Transaction> selectedTransactions =
           transactions.where((transaction) => transaction.isSelected).toList();
 
       if (selectedTransactions.isNotEmpty) {
-        _rejectTransaction(selectedTransactions);
+        _rejectTransactionsDisbursement(selectedTransactions);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('No transactions selected to reject')),
@@ -409,18 +529,31 @@ class _DisbursementChequeState extends State<DisbursementCheque>
               children: [
                 Container(
                   margin: EdgeInsets.only(right: screenSize.width * 0.02),
-                  child: IconButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (context) => NotificationScreen()),
-                      );
-                    },
-                    icon: const Icon(
-                      Icons.notifications,
-                      size: 24,
-                      color: Color.fromARGB(255, 233, 227, 227),
+                  child: badges.Badge(
+                    badgeContent: Text(
+                      notificationCount > 0 ? '$notificationCount' : '',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    badgeStyle: BadgeStyle(
+                      badgeColor: notificationCount > 0
+                          ? Colors.red
+                          : Colors.transparent,
+                      padding: EdgeInsets.all(6),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: IconButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (context) => ApproverNotification()),
+                        );
+                      },
+                      icon: const Icon(
+                        Icons.notifications,
+                        size: 24,
+                        color: Color.fromARGB(255, 233, 227, 227),
+                      ),
                     ),
                   ),
                 ),
@@ -540,7 +673,7 @@ class _DisbursementChequeState extends State<DisbursementCheque>
         visible: _totalSelectedAmount > 0,
         child: AnimatedContainer(
           duration: Duration(milliseconds: 500),
-          width: screenSize.width * 0.6,
+          width: screenSize.width * 0.65,
           margin: EdgeInsets.only(
             bottom: screenSize.height * 0.02,
             right: screenSize.width * 0.005,
@@ -594,6 +727,33 @@ class _DisbursementChequeState extends State<DisbursementCheque>
                       color: Colors.blue,
                       width: screenSize.width * 0.01,
                     ),
+                  ),
+                ),
+              ),
+              SizedBox(width: screenSize.width * 0.01),
+              ElevatedButton.icon(
+                onPressed: () {
+                  _showDialog(context, selectedTransactions);
+                },
+                icon: Icon(Icons.keyboard_return_outlined,
+                    size: screenSize.width * 0.025, color: Colors.white),
+                label: Text(
+                  'Return',
+                  style: TextStyle(
+                      fontSize: screenSize.width * 0.025, color: Colors.white),
+                ),
+                style: ElevatedButton.styleFrom(
+                  padding: EdgeInsets.symmetric(
+                      horizontal: screenSize.width * 0.015,
+                      vertical: screenSize.width * 0.015),
+                  backgroundColor: Colors.blue,
+                  elevation: 0,
+                  shadowColor: Colors.transparent,
+                  shape: RoundedRectangleBorder(
+                    borderRadius:
+                        BorderRadius.circular(screenSize.width * 0.04),
+                    side: BorderSide(
+                        color: Colors.blue, width: screenSize.width * 0.01),
                   ),
                 ),
               ),
@@ -722,6 +882,14 @@ class _DisbursementChequeState extends State<DisbursementCheque>
                   itemCount: filteredTransactions.length,
                   itemBuilder: (context, index) {
                     return CustomCardExample(
+                      onResetTransactions: () {
+                        setState(() {
+                          _transactionsFutureT =
+                              _fetchTransactionDetailsDisbursement('T');
+                          _transactionsFutureTnd =
+                              _fetchTransactionDetailsDisbursement('TND');
+                        });
+                      },
                       transaction: filteredTransactions[index],
                       isSelected:
                           filteredTransactions[index].isSelected ?? false,

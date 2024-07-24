@@ -1,12 +1,24 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import '../api_services/api_services_admin.dart';
 import '../models/admin_transaction.dart';
 import '../widgets/history_card.dart';
 import 'package:intl/intl.dart';
 
 class TransactionsScreen extends StatefulWidget {
-  const TransactionsScreen({Key? key}) : super(key: key);
+  String selectedFilter;
+  DateTime? startDate;
+  DateTime? endDate;
+  bool isOldestFirst;
+
+  TransactionsScreen({
+    Key? key,
+    required this.selectedFilter,
+    this.startDate,
+    this.endDate,
+    required this.isOldestFirst,
+  }) : super(key: key);
 
   @override
   _TransactionsScreenState createState() => _TransactionsScreenState();
@@ -14,76 +26,56 @@ class TransactionsScreen extends StatefulWidget {
 
 class _TransactionsScreenState extends State<TransactionsScreen> {
   List<Transaction> transactions = [];
-  String selectedFilter = 'All';
-  DateTime? startDate;
-  DateTime? endDate;
-  bool isOldestFirst = false;
+    final ApiServiceAdmin _apiServiceAdmin = ApiServiceAdmin();
 
   @override
   void initState() {
     super.initState();
-    DateTime now = DateTime.now();
-    startDate = DateTime(now.year, now.month, 1);
-    endDate = now;
     _loadTransactions();
-    isOldestFirst = false;
   }
 
-  Future<void> _loadTransactions() async {
-    try {
-      // Show loading indicator here
-      setState(() {});
+Future<void> _loadTransactions() async {
+  try {
+    setState(() {});
 
-      var url = Uri.parse(
-          'http://192.168.131.94/localconnect/transaction_history.php');
-      var response = await http.get(url);
-      if (response.statusCode == 200) {
-        var jsonData = jsonDecode(response.body);
-        if (jsonData is List) {
-          List<Transaction> fetchedTransactions = jsonData
-              .map((transaction) => Transaction.fromJson(transaction))
-              .toList();
-          fetchedTransactions.sort((a, b) => isOldestFirst
-              ? a.onlineProcessDate.compareTo(b.onlineProcessDate)
-              : b.onlineProcessDate.compareTo(a.onlineProcessDate));
-          setState(() {
-            transactions = fetchedTransactions
-                .where((transaction) =>
-                    (transaction.transactionStatus == 'R' &&
-                        transaction.onlineTransactionStatus == 'R') ||
-                    transaction.transactionStatus == 'A' ||
-                    transaction.transactionStatus == 'N')
-                .toList();
-          });
-        } else {
-          throw Exception('Unexpected response format');
-        }
-      } else {
-        throw Exception(
-            'Failed to load transaction details: ${response.statusCode}');
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to fetch transaction details: $e'),
-          duration: Duration(seconds: 5),
-        ),
-      );
-    } finally {
-      setState(() {});
-    }
+    List<Transaction> fetchedTransactions = await _apiServiceAdmin.loadTransactions();
+
+    fetchedTransactions.sort((a, b) => widget.isOldestFirst
+        ? a.onlineProcessDate.compareTo(b.onlineProcessDate)
+        : b.onlineProcessDate.compareTo(a.onlineProcessDate));
+
+    setState(() {
+      transactions = fetchedTransactions
+          .where((transaction) =>
+              (transaction.transactionStatus == 'R' &&
+                  transaction.onlineTransactionStatus == 'R') ||
+              transaction.transactionStatus == 'A' ||
+              transaction.transactionStatus == 'N')
+          .toList();
+    });
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Failed to fetch transaction details: $e'),
+        duration: Duration(seconds: 5),
+      ),
+    );
+  } finally {
+    setState(() {});
   }
+}
+
 
   Future<void> _selectStartDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: startDate ?? DateTime.now(),
+      initialDate: widget.startDate ?? DateTime.now(),
       firstDate: DateTime(2000),
       lastDate: DateTime(2101),
     );
     if (picked != null) {
       setState(() {
-        startDate = picked;
+        widget.startDate = picked;
       });
       _loadTransactions();
     }
@@ -92,13 +84,13 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   Future<void> _selectEndDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: endDate ?? DateTime.now(),
+      initialDate: widget.endDate ?? DateTime.now(),
       firstDate: DateTime(2000),
       lastDate: DateTime(2101),
     );
     if (picked != null) {
       setState(() {
-        endDate = picked;
+        widget.endDate = picked;
       });
       _loadTransactions();
     }
@@ -117,7 +109,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           _buildDateRangePicker(context, screenSize),
           Expanded(
             child: _buildTransactionList(),
-          )
+          ),
         ],
       ),
     );
@@ -132,7 +124,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
           ElevatedButton(
             onPressed: () {
               setState(() {
-                isOldestFirst = !isOldestFirst;
+                widget.isOldestFirst = !widget.isOldestFirst;
               });
               _loadTransactions();
             },
@@ -147,7 +139,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
               ),
             ),
             child: Text(
-              isOldestFirst ? 'Oldest First' : 'Newest First',
+              widget.isOldestFirst ? 'Oldest First' : 'Newest First',
               style: TextStyle(
                 fontSize: screenSize.width * 0.03,
                 fontWeight: FontWeight.bold,
@@ -156,11 +148,11 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             ),
           ),
           DropdownButton<String>(
-            value: selectedFilter,
+            value: widget.selectedFilter,
             dropdownColor: Color.fromARGB(255, 235, 238, 240),
             onChanged: (String? newValue) {
               setState(() {
-                selectedFilter = newValue!;
+                widget.selectedFilter = newValue!;
               });
               _loadTransactions();
             },
@@ -206,7 +198,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
               ),
             ),
             child: Text(
-              formatter.format(startDate!),
+              formatter.format(widget.startDate!),
               style: TextStyle(
                 color: Colors.black,
                 fontSize: screenSize.width * 0.03,
@@ -232,7 +224,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
               ),
             ),
             child: Text(
-              formatter.format(endDate!),
+              formatter.format(widget.endDate!),
               style: TextStyle(
                 color: Colors.black,
                 fontSize: screenSize.width * 0.03,
@@ -247,9 +239,9 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   Widget _buildTransactionList() {
     final screenSize = MediaQuery.of(context).size;
     List<Transaction> filteredTransactions = transactions;
-    if (selectedFilter != 'All') {
+    if (widget.selectedFilter != 'All') {
       filteredTransactions = filteredTransactions.where((transaction) {
-        switch (selectedFilter) {
+        switch (widget.selectedFilter) {
           case 'Approved':
             return transaction.transactionStatus == 'A';
           case 'Rejected':
@@ -261,13 +253,13 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         }
       }).toList();
     }
-    if (startDate != null && endDate != null) {
+    if (widget.startDate != null && widget.endDate != null) {
       filteredTransactions = filteredTransactions.where((transaction) {
         try {
           var transactionDate = DateTime.parse(transaction.onlineProcessDate);
           return transactionDate
-                  .isAfter(startDate!.subtract(Duration(days: 1))) &&
-              transactionDate.isBefore(endDate!.add(Duration(days: 1)));
+                  .isAfter(widget.startDate!.subtract(Duration(days: 1))) &&
+              transactionDate.isBefore(widget.endDate!.add(Duration(days: 1)));
         } catch (e) {
           print('Error parsing date "${transaction.onlineProcessDate}": $e');
           return false;

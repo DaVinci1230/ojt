@@ -23,7 +23,7 @@
 //   }
 
 //   Future<List<Map<String, dynamic>>> _fetchCheckDetails(String docNo, String docType) async {
-//     final response = await http.get(Uri.parse('http://192.168.131.94/localconnect/view_details.php?doc_no=$docNo&doc_type=$docType'));
+//     final response = await http.get(Uri.parse('https://backend-approval.azurewebsites.net/view_details.php?doc_no=$docNo&doc_type=$docType'));
 //     if (response.statusCode == 200) {
 //       List<dynamic> data = json.decode(response.body);
 //       return List<Map<String, dynamic>>.from(data);

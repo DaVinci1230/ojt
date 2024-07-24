@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:ojt/transmittal_screens/transmitter_history.dart';
+import '../models/user_transaction.dart';
+import '/transmittal_screens/transmitter_history.dart';
 import '/loginScreen.dart';
 import 'fetching_transmital_data.dart';
 import 'no_support_transmit.dart';
+import 'package:intl/intl.dart';
+import 'package:badges/badges.dart' as badges;
+import 'package:badges/badges.dart';
+import 'transmittal_notification.dart';
+import '../../api_services/transmitter_api.dart';
 
 class TransmitMenuWindow extends StatefulWidget {
   const TransmitMenuWindow({Key? key}) : super(key: key);
@@ -13,6 +19,8 @@ class TransmitMenuWindow extends StatefulWidget {
 
 class _MenuState extends State<TransmitMenuWindow> {
   int _selectedIndex = 2;
+  final TransmitterAPI _apiService = TransmitterAPI();
+  int notificationCount = 0;
 
   void _onItemTapped(int index) {
     if (_selectedIndex == index) return;
@@ -42,6 +50,27 @@ class _MenuState extends State<TransmitMenuWindow> {
         break;
     }
   }
+
+  Future<void> _countNotif() async {
+    try {
+      List<UserTransaction> transactions =
+          await _apiService.fetchTransactionDetails();
+      setState(() {
+        notificationCount = transactions
+            .where((transaction) =>
+                transaction.onlineProcessingStatus == 'U' ||
+                transaction.onlineProcessingStatus == 'ND' ||
+                transaction.onlineProcessingStatus == 'R' ||
+                transaction.onlineProcessingStatus == 'TND' ||
+                transaction.onlineProcessingStatus == 'T' &&
+                    transaction.notification == 'N')
+            .length;
+      });
+    } catch (e) {
+      throw Exception('Failed to fetch transaction details: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     Size screenSize = MediaQuery.of(context).size;
@@ -49,7 +78,6 @@ class _MenuState extends State<TransmitMenuWindow> {
 
     return Scaffold(
       appBar: AppBar(
-        
         backgroundColor: const Color.fromARGB(255, 79, 128, 189),
         toolbarHeight: screenSize.height * 0.1,
         title: Row(
@@ -58,8 +86,8 @@ class _MenuState extends State<TransmitMenuWindow> {
             Row(
               children: [
                 Image.asset(
-                  'logo.png',
-                  width: screenSize.width * 0.15, 
+                  'assets/logo.png',
+                  width: screenSize.width * 0.15,
                   height: screenSize.height * 0.1,
                 ),
                 const SizedBox(width: 8),
@@ -77,23 +105,40 @@ class _MenuState extends State<TransmitMenuWindow> {
               children: [
                 Container(
                   margin: EdgeInsets.only(right: screenSize.width * 0.02),
-                  child: IconButton(
-                    onPressed: () {
-                      // Navigator.push(
-                      //   context,
-                      //   MaterialPageRoute(
-                      //       builder: (context) => NotificationScreen()),
-                      // );
-                    },
-                    icon: const Icon(
-                      Icons.notifications,
-                      size: 24,
-                      color: Color.fromARGB(255, 233, 227, 227),
+                  child: badges.Badge(
+                    badgeContent: Text(
+                      '$notificationCount', // Display the number of notifications
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    badgeStyle: BadgeStyle(
+                      badgeColor: Colors.red,
+                      padding: EdgeInsets.all(6),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: IconButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (context) => TransmittalNotification()),
+                        );
+                      },
+                      icon: const Icon(
+                        Icons.notifications,
+                        size: 24,
+                        color: Color.fromARGB(255, 233, 227, 227),
+                      ),
                     ),
                   ),
                 ),
                 IconButton(
-                  onPressed: () {},
+                  onPressed: () {
+                    // Navigator.pushReplacement(
+                    //   context,
+                    //   MaterialPageRoute(
+                    //       builder: (context) => const HomepageMenuWindow()),
+                    // );
+                  },
                   icon: const Icon(
                     Icons.person,
                     size: 24,
@@ -169,14 +214,10 @@ class _MenuState extends State<TransmitMenuWindow> {
               ),
               InkWell(
                 onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => TransmitterHistory(),
-                    ),
-                  );
+                  _showFilterDialog(context);
                 },
-                child: _buildOption(screenSize, Icons.fact_check_outlined, 'History'),
+                child: _buildOption(
+                    screenSize, Icons.fact_check_outlined, 'History'),
               ),
               _buildOption(screenSize, Icons.fingerprint_rounded, 'Biometrics'),
               _buildOption(screenSize, Icons.security, 'Change Password'),
@@ -189,7 +230,8 @@ class _MenuState extends State<TransmitMenuWindow> {
                     ),
                   );
                 },
-                child: _buildOption(screenSize, Icons.login_outlined, 'Log out'),
+                child:
+                    _buildOption(screenSize, Icons.login_outlined, 'Log out'),
               ),
               SizedBox(
                 height: screenSize.height * 0.15,
@@ -248,6 +290,145 @@ class _MenuState extends State<TransmitMenuWindow> {
           ),
         ],
       ),
+    );
+  }
+
+  Future<void> _showFilterDialog(BuildContext context) async {
+    String selectedFilter = 'All';
+    DateTime startDate = DateTime(DateTime.now().year, DateTime.now().month, 1);
+    DateTime endDate = DateTime.now();
+    bool isOldestFirst = false;
+
+    // Calculate dialog width based on screen size
+    double dialogWidth = MediaQuery.of(context).size.width * 0.8;
+
+    await showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: Text('Set Filters'),
+              content: Container(
+                width: dialogWidth,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('Filter:'),
+                        Expanded(
+                          child: Align(
+                            alignment: Alignment.centerRight,
+                            child: DropdownButton<String>(
+                              value: selectedFilter,
+                              onChanged: (String? newValue) {
+                                setState(() {
+                                  selectedFilter = newValue!;
+                                });
+                              },
+                              items: <String>[
+                                'All',
+                                'Approved',
+                                'Rejected',
+                                'Returned'
+                              ].map<DropdownMenuItem<String>>((String value) {
+                                return DropdownMenuItem<String>(
+                                  value: value,
+                                  child: Text(value),
+                                );
+                              }).toList(),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 10),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('Start Date:'),
+                        ElevatedButton(
+                          onPressed: () async {
+                            final DateTime? picked = await showDatePicker(
+                              context: context,
+                              initialDate: startDate,
+                              firstDate: DateTime(2000),
+                              lastDate: DateTime(2101),
+                            );
+                            if (picked != null) {
+                              setState(() {
+                                startDate = picked;
+                              });
+                            }
+                          },
+                          child: Text(
+                              DateFormat('MMM dd, yyyy').format(startDate)),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 10),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('End Date:'),
+                        ElevatedButton(
+                          onPressed: () async {
+                            final DateTime? picked = await showDatePicker(
+                              context: context,
+                              initialDate: endDate,
+                              firstDate: DateTime(2000),
+                              lastDate: DateTime(2101),
+                            );
+                            if (picked != null) {
+                              setState(() {
+                                endDate = picked;
+                              });
+                            }
+                          },
+                          child:
+                              Text(DateFormat('MMM dd, yyyy').format(endDate)),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 10),
+                    CheckboxListTile(
+                      title: Text('Oldest First'),
+                      value: isOldestFirst,
+                      onChanged: (bool? newValue) {
+                        setState(() {
+                          isOldestFirst = newValue ?? false;
+                        });
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              actions: <Widget>[
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => TransmitterHistory(
+                          selectedFilter: selectedFilter,
+                          startDate: startDate,
+                          endDate: endDate,
+                          isOldestFirst: isOldestFirst,
+                        ),
+                      ),
+                    );
+                  },
+                  child: Text('Apply'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 }

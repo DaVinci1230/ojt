@@ -1,9 +1,11 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'dart:developer' as developer;
 import 'package:http/http.dart' as http;
 import 'package:flutter_pdfview/flutter_pdfview.dart';
+import '/api_services/transmitter_api.dart';
 
 class RepViewFiles extends StatefulWidget {
   final List<Map<String, String>> attachments;
@@ -26,6 +28,7 @@ class RepViewFiles extends StatefulWidget {
 class _RepViewFilesState extends State<RepViewFiles> {
   late List<Map<String, String>> _localAttachments;
   late Future<List<Attachment>> _serverAttachmentsFuture;
+  final TransmitterAPI _apiService = TransmitterAPI();
 
   @override
   void initState() {
@@ -45,7 +48,7 @@ class _RepViewFilesState extends State<RepViewFiles> {
   Future<List<Attachment>> _fetchAttachments() async {
     try {
       var url = Uri.parse(
-          'http://192.168.131.94/localconnect/view_attachment.php?doc_type=${widget.docType}&doc_no=${widget.docNo}');
+          'https://backend-approval.azurewebsites.net/view_attachment.php?doc_type=${widget.docType}&doc_no=${widget.docNo}');
       var response = await http.get(url);
 
       if (response.statusCode == 200) {
@@ -70,33 +73,35 @@ class _RepViewFilesState extends State<RepViewFiles> {
     if (fileName.endsWith('.jpeg') ||
         fileName.endsWith('.jpg') ||
         fileName.endsWith('.png')) {
-      return Image.asset(
-        'assets/$fileName',
+      return Image.network(
+        'https://backend-approval.scm.azurewebsites.net/wwwroot/img/$fileName',
         width: MediaQuery.of(context).size.width * 0.95,
         height: MediaQuery.of(context).size.height * 0.62,
         fit: BoxFit.fill,
       );
     } else if (fileName.endsWith('.pdf')) {
-      return FutureBuilder(
+      return FutureBuilder<String>(
         future: _getPdfFile(attachment.filePath),
         builder: (context, snapshot) {
-          if (snapshot.hasData) {
-            return SizedBox(
-              width: MediaQuery.of(context).size.width * 0.95,
-              height: MediaQuery.of(context).size.height * 0.52,
-              child: PDFView(
-                filePath: snapshot.data!,
-                autoSpacing: true,
-                pageFling: true,
-                pageSnap: true,
-                swipeHorizontal: true,
-              ),
-            );
-          } else if (snapshot.hasError) {
-            return Center(child: Text('Error loading PDF: ${snapshot.error}'));
-          } else {
-            return Center(child: CircularProgressIndicator());
+          if (snapshot.connectionState == ConnectionState.done) {
+            if (snapshot.hasData) {
+              return SizedBox(
+                width: MediaQuery.of(context).size.width * 0.95,
+                height: MediaQuery.of(context).size.height * 0.52,
+                child: PDFView(
+                  filePath: snapshot.data!,
+                  autoSpacing: true,
+                  pageFling: true,
+                  pageSnap: true,
+                  swipeHorizontal: true,
+                ),
+              );
+            } else if (snapshot.hasError) {
+              return Center(
+                  child: Text('Error loading PDF: ${snapshot.error}'));
+            }
           }
+          return Center(child: CircularProgressIndicator());
         },
       );
     } else {
@@ -150,8 +155,7 @@ class _RepViewFilesState extends State<RepViewFiles> {
                       ),
                     ),
                     child: Container(
-                      margin:
-                          EdgeInsets.symmetric(vertical: 5, horizontal: 10),
+                      margin: EdgeInsets.symmetric(vertical: 5, horizontal: 10),
                       padding: EdgeInsets.all(10),
                       decoration: BoxDecoration(
                         color: Colors.white,
@@ -173,9 +177,15 @@ class _RepViewFilesState extends State<RepViewFiles> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Image.asset(
-                                  'assets/${attachment['name']!}',
-                                ),
+                                if (attachment['fileType'] == 'image')
+                                  Image.file(
+                                    File(attachment['name']!),
+                                    width:
+                                        MediaQuery.of(context).size.width * 0.8,
+                                    height: MediaQuery.of(context).size.height *
+                                        0.3,
+                                    fit: BoxFit.cover,
+                                  ),
                                 Text(attachment['status']!),
                               ],
                             ),
@@ -184,8 +194,7 @@ class _RepViewFilesState extends State<RepViewFiles> {
                             GestureDetector(
                               onTap: () async {
                                 final imagePath = attachment['path'];
-                                final imageData =
-                                    await _loadAsset(imagePath!);
+                                final imageData = await _loadAsset(imagePath!);
                                 developer.log(
                                     'Showing image preview for ${attachment['name']}');
                                 showDialog(
@@ -193,8 +202,8 @@ class _RepViewFilesState extends State<RepViewFiles> {
                                   builder: (context) {
                                     return AlertDialog(
                                       title: Text('Image'),
-                                      content: Image.memory(
-                                          base64Decode(imageData)),
+                                      content:
+                                          Image.memory(base64Decode(imageData)),
                                     );
                                   },
                                 );
@@ -234,8 +243,8 @@ class _RepViewFilesState extends State<RepViewFiles> {
                       return Card(
                         child: ListTile(
                           title: Text(serverAttachments[index].fileName),
-                          subtitle: _buildAttachmentWidget(
-                              serverAttachments[index]),
+                          subtitle:
+                              _buildAttachmentWidget(serverAttachments[index]),
                           trailing: IconButton(
                             icon: Icon(Icons.delete, color: Colors.red),
                             onPressed: () {
@@ -265,33 +274,18 @@ class _RepViewFilesState extends State<RepViewFiles> {
   void _removeServerAttachment(int index) async {
     try {
       Attachment attachment = (await _serverAttachmentsFuture)[index];
-      final response = await http.post(
-        Uri.parse(
-            'http://192.168.131.94/localconnect/remove_previous_attachment.php'),
-        body: {
-          'file_path': attachment.filePath,
-          'file_name': attachment.fileName,
-        },
+      await TransmitterAPI().removeServerAttachment(
+        attachment.filePath,
+        attachment.fileName,
       );
 
-      if (response.statusCode == 200) {
-        var responseData = json.decode(response.body);
-        print('Server response: $responseData'); // Log the server response
-        if (responseData['status'] == 'success') {
-          setState(() {
-            _serverAttachmentsFuture = _fetchAttachments();
-          });
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Server attachment removed successfully')),
-          );
-        } else {
-          throw Exception(
-              'Failed to remove server attachment: ${responseData['message']}');
-        }
-      } else {
-        throw Exception(
-            'Failed to remove server attachment: ${response.statusCode}');
-      }
+      setState(() {
+        _serverAttachmentsFuture = _fetchAttachments();
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Server attachment removed successfully')),
+      );
     } catch (e) {
       print('Error removing server attachment: $e');
       ScaffoldMessenger.of(context).showSnackBar(

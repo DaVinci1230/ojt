@@ -2,15 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:intl/intl.dart';
-import 'package:ojt/screens_user/uploading/uploader_hompage.dart';
-import 'package:ojt/screens_user/uploading/user_menu.dart';
-import 'package:ojt/widgets/navbar.dart';
+import '../uploader_notification.dart';
+import '/screens_user/uploading/uploader_hompage.dart';
+import '/screens_user/uploading/user_menu.dart';
+import '/widgets/navbar.dart';
 import 'package:scrollable_table_view/scrollable_table_view.dart';
 import '../../models/user_transaction.dart';
 import '../../transmittal_screens/reprocess_details.dart';
 import '../../transmittal_screens/reprocessing_menu.dart';
 import '../../transmittal_screens/uploader_menu.dart';
 import '../../widgets/table.dart';
+import 'package:badges/badges.dart' as badges;
+import 'package:badges/badges.dart';
+import '../../api_services/api_services.dart'; 
 
 class ReprocessingFetchProcess extends StatefulWidget {
   const ReprocessingFetchProcess({Key? key}) : super(key: key);
@@ -21,14 +25,16 @@ class ReprocessingFetchProcess extends StatefulWidget {
 }
 
 class _ReprocessingFetchProcessState extends State<ReprocessingFetchProcess> {
-  late List<Transaction> transactions;
+  late List<UserTransaction> transactions;
   late bool isLoading;
   String selectedColumn = 'docRef';
   List<String> headers = ['Doc Ref', 'Payor', 'Amount'];
   bool isAscending = true;
   int currentPage = 1;
   int rowsPerPage = 20;
-  int _selectedIndex = 0; // Add this line to manage the active tab state
+  int _selectedIndex = 0; 
+   int notificationCount = 0;
+   final ApiService _apiService = ApiService();
 
   @override
   void initState() {
@@ -36,6 +42,7 @@ class _ReprocessingFetchProcessState extends State<ReprocessingFetchProcess> {
     isLoading = true;
     transactions = [];
     fetchTransactions();
+    _countNotif();
   }
 
   void _onItemTapped(int index) {
@@ -61,6 +68,24 @@ class _ReprocessingFetchProcessState extends State<ReprocessingFetchProcess> {
     }
   }
 
+  Future<void> _countNotif() async {
+    try {
+      List<UserTransaction> transactions = await _apiService.fetchTransactionDetails();
+      setState(() {
+        notificationCount = transactions
+            .where((transaction) =>
+           transaction.onlineProcessingStatus == 'U' ||
+           transaction.onlineProcessingStatus == 'ND' ||
+           transaction.onlineProcessingStatus == 'R' &&
+                    transaction.notification == 'N')
+            .length;
+      });
+    } catch (e) {
+      throw Exception('Failed to fetch transaction details: $e');
+    }
+  }
+
+
   void _navigateToUserHomePage(BuildContext context) {
     Navigator.push(
       context,
@@ -73,13 +98,13 @@ class _ReprocessingFetchProcessState extends State<ReprocessingFetchProcess> {
   Future<void> fetchTransactions() async {
     try {
       final response = await http.get(Uri.parse(
-          'http://192.168.131.94/localconnect/fetch_transaction_data.php'));
+          'http://192.168.68.116/localconnect/fetch_transaction_data.php'));
 
       if (response.statusCode == 200) {
         setState(() {
           final List<dynamic> data = json.decode(response.body);
           transactions = data
-              .map((json) => Transaction.fromJson(json))
+              .map((json) => UserTransaction.fromJson(json))
               .where((transaction) =>
                   transaction.onlineProcessingStatus == 'R' &&
                   transaction.transactionStatus == 'R')
@@ -162,7 +187,7 @@ class _ReprocessingFetchProcessState extends State<ReprocessingFetchProcess> {
     });
   }
 
-  void navigateToDetails(Transaction transaction) {
+  void navigateToDetails(UserTransaction transaction) {
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -218,41 +243,54 @@ class _ReprocessingFetchProcessState extends State<ReprocessingFetchProcess> {
               ],
             ),
             Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                Container(
-                  margin: EdgeInsets.only(right: screenWidth * 0.02),
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              Container(
+                margin: EdgeInsets.only(right: screenSize.width * 0.02),
+                child: badges.Badge(
+                  badgeContent: Text(
+                    '$notificationCount',  // Display the number of notifications
+                    style: TextStyle(color: Colors.white),
+                  ),
+                  badgeStyle: BadgeStyle(
+                    badgeColor: Colors.red,
+                    padding: EdgeInsets.all(6),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                   child: IconButton(
                     onPressed: () {
-                      // Navigator.push(
-                      //   context,
-                      //   MaterialPageRoute(
-                      //       builder: (context) => NotificationScreen()),
-                      // );
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (context) => UploaderNotification()),
+                      );
                     },
                     icon: const Icon(
                       Icons.notifications,
-                      size: 24, // Adjust size as needed
+                      size: 24,
                       color: Color.fromARGB(255, 233, 227, 227),
                     ),
                   ),
                 ),
-                IconButton(
-                  onPressed: () {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                          builder: (context) => const ReprocessMenuWindow()),
-                    );
-                  },
-                  icon: const Icon(
-                    Icons.person,
-                    size: 24, // Adjust size as needed
-                    color: Color.fromARGB(255, 233, 227, 227),
-                  ),
+              ),
+              IconButton(
+                onPressed: () {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => const UserMenuWindow()),
+                  );
+                },
+                icon: const Icon(
+                  Icons.person,
+                  size: 24,
+                  color: Color.fromARGB(255, 233, 227, 227),
                 ),
-              ],
-            ),
+              ),
+            ],
+          ),
+
+
           ],
         ),
       ),

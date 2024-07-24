@@ -5,14 +5,17 @@ import 'dart:convert';
 import 'package:intl/intl.dart';
 
 import '/transmittal_screens/transmitter_menu.dart';
-
-
+import 'package:badges/badges.dart' as badges;
+import 'package:badges/badges.dart';
 import '../models/user_transaction.dart';
 
 import '../widgets/table.dart';
 import 'fetching_transmital_data.dart';
 import 'no_support_details_transmit.dart';
+import 'transmittal_notification.dart';
 import 'transmitter_homepage.dart';
+import '../../api_services/transmitter_api.dart';
+
 
 class NoSupportTransmit extends StatefulWidget {
   const NoSupportTransmit({Key? key}) : super(key: key);
@@ -22,14 +25,16 @@ class NoSupportTransmit extends StatefulWidget {
 }
 
 class _NoSupportTransmitState extends State<NoSupportTransmit> {
-  late List<Transaction> transactions;
+  late List<UserTransaction> transactions;
   late bool isLoading;
   String selectedColumn = 'docRef';
   List<String> headers = ['Doc Ref', 'Payor', 'Amount'];
   bool isAscending = true;
-  int currentPage = 1;
-  int rowsPerPage = 20;
-  int _selectedIndex = 1; // Add this line to manage the active tab state
+  
+  int _selectedIndex = 1; 
+  int notificationCount = 0; 
+  final TransmitterAPI _apiService = TransmitterAPI();
+
 
   @override
   void initState() {
@@ -68,6 +73,23 @@ class _NoSupportTransmitState extends State<NoSupportTransmit> {
     }
   }
 
+Future<void> _countNotif() async {
+    try {
+      List<UserTransaction> transactions = await _apiService.countNotification();
+      setState(() {
+        notificationCount = transactions
+            .where((transaction) =>
+                transaction.onlineProcessingStatus == 'TND' ||
+                transaction.onlineProcessingStatus == 'T' &&
+                    transaction.notification == 'N')
+            .length;
+      });
+    } catch (e) {
+      throw Exception('Failed to fetch transaction details: $e');
+    }
+  }
+
+
   void _navigateToTransmitterHomePage(BuildContext context) {
     Navigator.push(
       context,
@@ -77,42 +99,34 @@ class _NoSupportTransmitState extends State<NoSupportTransmit> {
     );
   }
 
-  Future<void> fetchTransactions() async {
-    try {
-      final response = await http.get(Uri.parse(
-          'http://192.168.131.94/localconnect/fetch_transaction_data.php'));
+Future<void> fetchTransactions() async {
+  setState(() {
+    isLoading = true;
+  });
 
-      if (response.statusCode == 200) {
-        setState(() {
-          final List<dynamic> data = json.decode(response.body);
-          transactions = data
-              .map((json) => Transaction.fromJson(json))
-              .where(
-                  (transaction) => transaction.onlineProcessingStatus == 'ND')
-              .toList();
-          isLoading = false;
-        });
-      } else {
-        throw Exception(
-            'Failed to load data. Status code: ${response.statusCode}');
-      }
-    } catch (e) {
-      print('Error fetching data: $e');
-      throw Exception('Failed to connect to server.');
-    }
-  }
-
-  void previousPage() {
+  try {
+    List<UserTransaction> fetchedTransactions = await TransmitterAPI().fetchTransactionsTransmitNoSupport();
     setState(() {
-      if (currentPage > 1) currentPage--;
+      transactions = fetchedTransactions;
+      isLoading = false;
+    });
+  } catch (e) {
+    print('Error fetching data: $e');
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Failed to fetch transactions: $e'),
+        duration: Duration(seconds: 5),
+      ),
+    );
+    setState(() {
+      isLoading = false;
     });
   }
+}
 
-  void nextPage() {
-    setState(() {
-      if ((currentPage + 1) * rowsPerPage <= transactions.length) currentPage++;
-    });
-  }
+
+
+
 
   String formatDate(DateTime date) {
     final DateFormat formatter = DateFormat('MM/dd/yy');
@@ -168,7 +182,7 @@ class _NoSupportTransmitState extends State<NoSupportTransmit> {
     });
   }
 
-  void navigateToDetails(Transaction transaction) {
+  void navigateToDetails(UserTransaction transaction) {
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -188,8 +202,6 @@ class _NoSupportTransmitState extends State<NoSupportTransmit> {
 
     final screenWidth = MediaQuery.of(context).size.width;
     final paginatedTransactions = transactions
-        .skip((currentPage - 1) * rowsPerPage)
-        .take(rowsPerPage)
         .toList();
 
      return Scaffold(
@@ -226,33 +238,59 @@ class _NoSupportTransmitState extends State<NoSupportTransmit> {
             ],
           ),
           Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              IconButton(
-                onPressed: () {
-                  // Navigate to notification screen
-                  // Navigator.push(
-                  //   context,
-                  //   MaterialPageRoute(
-                  //       builder: (context) => NotificationScreen()),
-                  // );
-                },
-                icon: const Icon(
-                  Icons.notifications,
-                  size: 24, // Adjust size as needed
-                  color: Color.fromARGB(255, 233, 227, 227),
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Container(
+                      margin: EdgeInsets.only(right: screenSize.width * 0.02),
+                      child: badges.Badge(
+                        badgeContent: Text(
+                          notificationCount > 0 ? '$notificationCount' : '',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                        badgeStyle: BadgeStyle(
+                          badgeColor: notificationCount > 0
+                              ? Colors.red
+                              : Colors.transparent,
+                          padding: EdgeInsets.all(6),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: IconButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (context) => TransmittalNotification()),
+                            );
+                          },
+                          icon: const Icon(
+                            Icons.notifications,
+                            size: 24,
+                            color: Color.fromARGB(255, 233, 227, 227),
+                          ),
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () {
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                              builder: (context) => TransmitMenuWindow()),
+                        );
+                      },
+                      icon: const Icon(
+                        Icons.person,
+                        size: 24,
+                        color: Color.fromARGB(255, 233, 227, 227),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-              IconButton(
-                onPressed: () {},
-                icon: const Icon(
-                  Icons.person,
-                  size: 24, // Adjust size as needed
-                  color: Color.fromARGB(255, 233, 227, 227),
-                ),
-              ),
-            ],
-          ),
+              ],
+            ),
         ],
       ),
     ),

@@ -1,22 +1,23 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
-import 'package:ojt/widgets/uploader_card_history.dart';
+import '/widgets/transmitter_card_history.dart';
 import '/models/user_transaction.dart';
+import '../../api_services/transmitter_api.dart';
 
-class MarkHistory extends StatefulWidget {
-  const MarkHistory({Key? key}) : super(key: key);
+class UploaderHistory extends StatefulWidget {
+  const UploaderHistory({Key? key}) : super(key: key);
 
   @override
-  _MarkHistoryState createState() => _MarkHistoryState();
+  _UploaderHistoryState createState() => _UploaderHistoryState();
 }
 
-class _MarkHistoryState extends State<MarkHistory> {
-  List<Transaction> transactions = [];
+class _UploaderHistoryState extends State<UploaderHistory> {
+  List<UserTransaction> transactions = [];
   String selectedFilter = 'All';
   DateTime? startDate;
   DateTime? endDate;
+  bool isLoading = false;
+  final TransmitterAPI _apiService = TransmitterAPI();
 
   @override
   void initState() {
@@ -27,54 +28,40 @@ class _MarkHistoryState extends State<MarkHistory> {
     _loadTransactions();
   }
 
-  Future<void> _loadTransactions() async {
-    try {
-      // Show loading indicator here
-      setState(() {});
+Future<void> _loadTransactions() async {
+  setState(() {
+    // Show loading indicator here
+    isLoading = true;
+  });
 
-      var url = Uri.parse(
-          'http://192.168.131.94/localconnect/transmitter_history.php');
-      var response = await http.get(url);
-
-      if (response.statusCode == 200) {
-        var jsonData = jsonDecode(response.body);
-        if (jsonData is List) {
-          List<Transaction> fetchedTransactions = jsonData
-              .map((transaction) => Transaction.fromJson(transaction))
-              .toList();
-          fetchedTransactions.sort(
-              (a, b) => b.onlineProcessDate.compareTo(a.onlineProcessDate));
-          setState(() {
-            transactions = fetchedTransactions
-                .where((transaction) =>
-                    (transaction.transactionStatus == 'R' &&
-                        transaction.onlineProcessingStatus == 'T') ||
-                    (transaction.transactionStatus == 'R' &&
-                        transaction.onlineProcessingStatus == 'TND') ||
-                    transaction.transactionStatus == 'N' ||
-                    transaction.transactionStatus == 'A')
-                .toList();
-          });
-        } else {
-          throw Exception('Unexpected response format');
-        }
-      } else {
-        throw Exception(
-            'Failed to load transaction details: ${response.statusCode}');
-      }
-    } catch (e) {
-      // Show error message to user
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to fetch transaction details: $e'),
-          duration: Duration(seconds: 5),
-        ),
-      );
-    } finally {
+  try {
+    List<UserTransaction> fetchedTransactions = await TransmitterAPI().fetchTransactionsHistory();
+    setState(() {
+      transactions = fetchedTransactions
+          .where((transaction) =>
+              (transaction.transactionStatus == 'R' &&
+                  transaction.onlineProcessingStatus == 'U') ||
+              (transaction.transactionStatus == 'R' &&
+                  transaction.onlineProcessingStatus == 'ND') ||
+              transaction.transactionStatus == 'N' ||
+              transaction.transactionStatus == 'A')
+          .toList();
+    });
+  } catch (e) {
+    // Show error message to user
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Failed to fetch transaction details: $e'),
+        duration: Duration(seconds: 5),
+      ),
+    );
+  } finally {
+    setState(() {
       // Hide loading indicator here
-      setState(() {});
-    }
+      isLoading = false;
+    });
   }
+}
 
   Future<void> _selectStartDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
@@ -141,13 +128,8 @@ class _MarkHistoryState extends State<MarkHistory> {
                   });
                   _loadTransactions(); // Reload transactions after filter change
                 },
-                items: <String>[
-                  'All',
-                  'Approved',
-                  'Rejected',
-                  'Returned',
-                  'On process'
-                ].map<DropdownMenuItem<String>>((String value) {
+                items: <String>['All', 'Approved', 'Rejected', 'Returned', 'On process']
+                    .map<DropdownMenuItem<String>>((String value) {
                   return DropdownMenuItem<String>(
                     value: value,
                     child: Text(value),
@@ -220,7 +202,7 @@ class _MarkHistoryState extends State<MarkHistory> {
   }
 
   Widget _buildTransactionList() {
-    List<Transaction> filteredTransactions = transactions;
+    List<UserTransaction> filteredTransactions = transactions;
     if (selectedFilter != 'All') {
       filteredTransactions = filteredTransactions.where((transaction) {
         switch (selectedFilter) {
@@ -229,11 +211,9 @@ class _MarkHistoryState extends State<MarkHistory> {
           case 'Rejected':
             return transaction.transactionStatus == 'N';
           case 'Returned':
-            return transaction.transactionStatus == 'R' &&
-                transaction.onlineTransactionStatus == 'R';
-          case 'On process':
-            return transaction.transactionStatus == 'R' &&
-                transaction.onlineProcessingStatus == 'TND';
+            return transaction.transactionStatus == 'R' && transaction.onlineTransactionStatus == 'R';
+          case 'On Process':
+          return transaction.onlineProcessingStatus == 'T' || transaction.onlineProcessingStatus == 'TND';
           default:
             return true;
         }
@@ -264,8 +244,8 @@ class _MarkHistoryState extends State<MarkHistory> {
       return ListView.builder(
         itemCount: filteredTransactions.length,
         itemBuilder: (BuildContext context, int index) {
-          Transaction transaction = filteredTransactions[index];
-          return MarkCardHistory(
+          UserTransaction transaction = filteredTransactions[index];
+          return TransmitterCardHistory(
             transaction: transaction,
           );
         },

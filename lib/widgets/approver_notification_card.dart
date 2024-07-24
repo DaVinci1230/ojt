@@ -4,28 +4,38 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../models/admin_transaction.dart';
 import '/admin_screens/view_attachments.dart';
-import '../../api_services/api_services_admin.dart';
+import '/api_services/api_services_admin.dart';
 
-class TransactionsCard extends StatefulWidget {
+class ApproverNotificationCard extends StatefulWidget {
+  final bool isSelected;
   final Transaction transaction;
+  final Function(bool)? onSelectChanged;
+  final ValueChanged<double>? onSelectedAmountChanged;
+  final bool showSelectAllButton;
+  final bool isSelectAll;
+  final VoidCallback onResetTransactions;
 
-  const TransactionsCard({
+  const ApproverNotificationCard({
     Key? key,
     required this.transaction,
+    required this.isSelected,
+    required this.onSelectChanged,
+    this.onSelectedAmountChanged,
+    required this.showSelectAllButton,
+    required this.isSelectAll,
+    required this.onResetTransactions,
   }) : super(key: key);
-
   @override
-  _TransactionsCardState createState() => _TransactionsCardState();
+  _ApproverNotificationCardState createState() =>
+      _ApproverNotificationCardState();
 }
 
-class _TransactionsCardState extends State<TransactionsCard>
+class _ApproverNotificationCardState extends State<ApproverNotificationCard>
     with SingleTickerProviderStateMixin {
-  String? fileName;
-  String? filePath;
   late AnimationController _controller;
   bool _showDetails = false;
-  final ApiServiceAdmin _apiServiceAdmin = ApiServiceAdmin();
   List<Map<String, dynamic>> _checkDetails = [];
+  final ApiServiceAdmin _apiServiceAdmin = ApiServiceAdmin();
 
   @override
   void initState() {
@@ -35,53 +45,181 @@ class _TransactionsCardState extends State<TransactionsCard>
       duration: Duration(milliseconds: 500),
     );
     _fetchCheckDetails(widget.transaction.docNo, widget.transaction.docType);
-    _fetchFileNameAndPath();
+  }
+
+  Future<void> _approvedTransaction(String docNo, String docType) async {
+  try {
+    var responseData = await ApiServiceAdmin().approveTransaction(docNo, docType);
+
+    if (responseData['status'] == 'success') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Transaction approved successfully')),
+      );
+      setState(() {
+        _showDetails = false;
+        _checkDetails.clear();
+      });
+      widget.onResetTransactions?.call();
+    } else {
+      throw Exception('Failed to approve transaction');
+    }
+  } catch (e) {
+    print('Error approving transaction: $e');
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Error approving transaction: $e')),
+    );
+  }
+}
+
+
+  void resetTransaction(Transaction newTransaction) {
+    setState(() {
+      _showDetails = false;
+      _checkDetails.clear();
+    });
+    _fetchCheckDetails(newTransaction.docNo, newTransaction.docType);
   }
 
 Future<void> _fetchCheckDetails(String docNo, String docType) async {
   try {
-    List<Map<String, dynamic>> checkDetails = await _apiServiceAdmin.fetchCheckDetailsCardHistory(docNo, docType);
+    List<dynamic> data = await ApiServiceAdmin().fetchCheckDetails(docNo, docType);
+    
+    if (!mounted) return; // Check if the widget is still mounted
+
+    data.sort((a, b) => DateTime.parse(b['date_trans'])
+        .compareTo(DateTime.parse(a['date_trans'])));
+    
     if (mounted) {
       setState(() {
-        _checkDetails = checkDetails;
+        _checkDetails = List<Map<String, dynamic>>.from(data);
       });
     }
   } catch (e) {
+    print('Error fetching check details: $e');
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error fetching check details: $e')),
       );
-    } else {
-      print('Error fetching check details: $e');
     }
   }
 }
 
 
-Future<void> _fetchFileNameAndPath() async {
+Future<void> _returnTransaction(String docNo, String docType, String approverRemarks) async {
   try {
-    Map<String, dynamic> fileDetails = await _apiServiceAdmin.fetchFileNameAndPath(widget.transaction.docNo, widget.transaction.docType);
-    if (mounted) {
-      setState(() {
-        fileName = fileDetails['file_name'];
-        filePath = fileDetails['file_path'];
-      });
+    var responseData = await ApiServiceAdmin().returnTransaction(docNo, docType, approverRemarks);
+
+    if (responseData['status'] == 'success') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Transaction returned successfully')),
+      );
+      resetTransaction(widget.transaction);
+      widget.onResetTransactions?.call();
+    } else {
+      throw Exception('Failed to return transaction');
     }
   } catch (e) {
-    if (mounted) {
+    print('Error returning transaction: $e');
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Error returning transaction: $e')),
+    );
+  }
+}
+
+  void _toggleSelection() {
+    widget.onSelectChanged?.call(!widget.transaction.isSelected);
+  }
+
+  void _showRemarksDialog(BuildContext context, String docNo, String docType,
+      String currentRemarks) {
+    TextEditingController _remarksController =
+        TextEditingController(text: currentRemarks);
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Remarks'),
+          content: TextField(
+            controller: _remarksController,
+            decoration: InputDecoration(
+              hintText: 'Enter your remarks here',
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: Text('Cancel'),
+              onPressed: () {
+                Navigator.of(context).pop(); // Close the dialog
+              },
+            ),
+            ElevatedButton(
+              child: Text('Send'),
+              onPressed: () {
+                // Handle send action here
+                String remarks =
+                    _remarksController.text.trim(); // Trim whitespace
+                if (remarks.isNotEmpty) {
+                  print('Remarks: $remarks');
+                  _returnTransaction(docNo, docType, remarks).then((_) {
+                    Navigator.of(context)
+                        .pop(); // Close the dialog after successful transaction
+                  }).catchError((error) {
+                    print('Error updating remarks: $error');
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Error updating remarks: $error'),
+                      ),
+                    );
+                  });
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Remarks cannot be empty'),
+                    ),
+                  );
+                }
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+Future<void> _rejectTransaction(String docNo, String docType) async {
+  try {
+    var responseData = await ApiServiceAdmin().rejectTransaction(docNo, docType);
+
+    if (responseData['status'] == 'success') {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error fetching file details: $e')),
+        SnackBar(content: Text('Transaction rejected successfully')),
       );
+      // Reset the card state
+      setState(() {
+        _showDetails = false;
+        _checkDetails.clear();
+      });
+      widget.onResetTransactions?.call();
     } else {
-      print('Error fetching file details: $e');
+      throw Exception('Failed to reject transaction');
     }
+  } catch (e) {
+    print('Error rejecting transaction: $e');
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Error rejecting transaction: $e')),
+    );
   }
 }
 
 
   Widget _buildCheckDetailsTable(List<Map<String, dynamic>> checkDetailsList) {
+    
     List<TableRow> rows = [];
+
+    // Function to add a table row for debit or credit details
     void addTableRow(Map<String, dynamic> details, bool showDebit, int index) {
+      // Determine if to show the peso sign based on the index
       String amountText = showDebit
           ? '${index == 0 ? '₱' : ''}${NumberFormat('#,###.##').format(double.parse(details['debit_amount']))} DR'
           : '${NumberFormat('#,###.##').format(double.parse(details['credit_amount']))} CR';
@@ -114,6 +252,7 @@ Future<void> _fetchFileNameAndPath() async {
       );
     }
 
+    // Collect debit and credit transactions separately
     List<Map<String, dynamic>> debits = checkDetailsList
         .where((details) =>
             details.containsKey('debit_amount') &&
@@ -130,18 +269,19 @@ Future<void> _fetchFileNameAndPath() async {
             double.parse(details['credit_amount'].toString()) != 0)
         .toList();
 
+    // Add debit transactions first
     for (int i = 0; i < debits.length; i++) {
       addTableRow(debits[i], true, i);
     }
+
+    // Add credit transactions next
     for (int i = 0; i < credits.length; i++) {
       addTableRow(credits[i], false, i);
     }
 
+    // Return the table with rows
     return Column(
       children: [
-        SizedBox(
-          height: MediaQuery.of(context).size.height * 0.005,
-        ),
         Table(
           columnWidths: {
             0: FlexColumnWidth(2),
@@ -183,29 +323,107 @@ Future<void> _fetchFileNameAndPath() async {
         SizedBox(
           height: 5,
         ),
-        SizedBox(
-          height: MediaQuery.of(context).size.height * 0.005,
-        ),
         Container(
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              if (fileName != null && filePath != null)
+              if (widget.transaction.onlineTransactionStatus == 'T')
                 ElevatedButton.icon(
-                  onPressed: _viewAttachments,
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => ViewAttachments(
+                          docType: widget.transaction.docType,
+                          docNo: widget.transaction.docNo,
+                        ),
+                      ),
+                    );
+                  },
                   icon: Icon(Icons.attachment_rounded),
                   label: Text('View Attachment'),
                   style: ElevatedButton.styleFrom(
                     padding: EdgeInsets.all(12),
-                    backgroundColor: Color.fromARGB(255, 187, 196, 204),
+                    backgroundColor: const Color.fromARGB(255, 187, 196, 204),
                     textStyle: TextStyle(fontSize: 16),
                   ),
                 ),
             ],
           ),
         ),
+        SizedBox(
+          height: MediaQuery.of(context).size.height * 0.005,
+        ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            ElevatedButton.icon(
+              onPressed: () {
+                _approvedTransaction(
+                    widget.transaction.docNo, widget.transaction.docType);
+              },
+              icon: Icon(Icons.check),
+              label: Text('Approve'),
+              style: ElevatedButton.styleFrom(
+                padding: EdgeInsets.all(8),
+                backgroundColor: const Color.fromARGB(255, 187, 196, 204),
+                textStyle: TextStyle(fontSize: 12),
+              ),
+            ),
+            SizedBox(
+              height: 2,
+            ),
+            ElevatedButton.icon(
+              onPressed: () {
+                _showRemarksDialog(
+                  context,
+                  widget.transaction.docNo,
+                  widget.transaction.docType,
+                  widget.transaction.approverRemarks,
+                );
+              },
+              icon: Icon(Icons.keyboard_return_outlined),
+              label: Text('Return'),
+              style: ElevatedButton.styleFrom(
+                padding: EdgeInsets.all(8),
+                backgroundColor: const Color.fromARGB(255, 187, 196, 204),
+                textStyle: TextStyle(fontSize: 12),
+              ),
+            ),
+            SizedBox(
+              height: 2,
+            ),
+            ElevatedButton.icon(
+              onPressed: () {
+                _rejectTransaction(
+                    widget.transaction.docNo, widget.transaction.docType);
+              },
+              icon: Icon(Icons.cancel_rounded),
+              label: Text('Reject'),
+              style: ElevatedButton.styleFrom(
+                padding: EdgeInsets.all(8),
+                backgroundColor: const Color.fromARGB(255, 187, 196, 204),
+                textStyle: TextStyle(fontSize: 12),
+              ),
+            ),
+          ],
+        ),
       ],
     );
+  }
+
+  Icon _buildCheckboxIcon() {
+    if (widget.isSelected) {
+      return Icon(
+        Icons.check_box,
+        color: Colors.white,
+      );
+    } else {
+      return Icon(
+        Icons.check_box_outline_blank,
+        color: Colors.white,
+      );
+    }
   }
 
   @override
@@ -214,20 +432,9 @@ Future<void> _fetchFileNameAndPath() async {
     super.dispose();
   }
 
-  void _viewAttachments() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => ViewAttachments(
-          docType: widget.transaction.docType,
-          docNo: widget.transaction.docNo,
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
+
     final mediaQuery = MediaQuery.of(context);
     final screenWidth = mediaQuery.size.width;
     final screenHeight = mediaQuery.size.height;
@@ -235,13 +442,13 @@ Future<void> _fetchFileNameAndPath() async {
     return AnimatedContainer(
       duration: Duration(milliseconds: 500),
       curve: Curves.easeInOut,
-      height: _showDetails ? null : screenHeight * 0.345,
+      height: _showDetails ? null : screenHeight * 0.312,
       child: Card(
-        shadowColor: Colors.white,
+        shadowColor: Colors.blueAccent,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(screenWidth * 0.03),
         ),
-        color: Color.fromARGB(255, 79, 98, 189),
+        color: Color.fromARGB(255, 79, 128, 189),
         child: Padding(
           padding: EdgeInsets.all(screenHeight * 0.015),
           child: Column(
@@ -417,44 +624,6 @@ Future<void> _fetchFileNameAndPath() async {
                   ),
                 ],
               ),
-              SizedBox(height: screenHeight * 0.005),
-              Container(
-                width: screenWidth * 0.43,
-                child: Row(
-                  children: [
-                    Container(
-                      padding: EdgeInsets.only(top: 5),
-                      width: screenWidth * 0.25,
-                      child: Text(
-                        "Status:",
-                        style: TextStyle(
-                          fontSize: screenHeight * 0.014,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                    SizedBox(width: screenWidth * 0.02),
-                    Expanded(
-                      child: Container(
-                        width: screenWidth * 0.2,
-                        color: Color.fromARGB(255, 227, 232, 235),
-                        padding: EdgeInsets.all(screenHeight * 0.006),
-                        child: Center(
-                          child: Text(
-                            widget.transaction.convertTransactionStatus,
-                            style: TextStyle(
-                              fontSize: screenHeight * 0.012,
-                              color: Color.fromARGB(255, 0, 0, 0),
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
               SizedBox(height: screenHeight * 0.007),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
@@ -485,6 +654,7 @@ Future<void> _fetchFileNameAndPath() async {
                   ),
                 ],
               ),
+              SizedBox(height: screenHeight * 0.007),
               AnimatedSize(
                 duration: Duration(milliseconds: 500),
                 curve: Curves.easeInOut,

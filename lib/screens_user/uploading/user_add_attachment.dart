@@ -1,45 +1,49 @@
-import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:typed_data';
 import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:http/http.dart' as http;
 import '../../models/user_transaction.dart';
-import '../../transmittal_screens/uploader_menu.dart';
 import '../../widgets/navBar.dart';
-import '../reprocessing/uploader_send_reprocessed.dart';
+import '../uploader_notification.dart';
+import 'uploader_hompage.dart';
 import 'user_menu.dart';
 import 'user_send_attachment.dart';
+import '../../api_services/api_services.dart';
 import 'user_upload.dart';
+import 'package:badges/badges.dart' as badges;
+import 'package:badges/badges.dart';
 
 class UserAddAttachment extends StatefulWidget {
-  final Transaction transaction;
-  final List<String> selectedDetails;
-  final bool isReprocessing;
+  final UserTransaction transaction;
 
   const UserAddAttachment({
     Key? key,
     required this.transaction,
-    required this.selectedDetails,
-    this.isReprocessing = false,
+    required List selectedDetails,
   }) : super(key: key);
 
   @override
-  _UserAddAttachmentState createState() => _UserAddAttachmentState();
+  _UserAddAttachmentState createState() =>
+      _UserAddAttachmentState();
 }
 
 String sanitizeFileName(String fileName) {
+  // Define a regular expression that matches non-alphanumeric characters
   final RegExp regExp = RegExp(r'[^a-zA-Z0-9.]');
+  // Replace matched characters with an empty string
   return fileName.replaceAll(regExp, '');
 }
 
 class _UserAddAttachmentState extends State<UserAddAttachment> {
-  int _selectedIndex = 0;
+  int _selectedIndex = 0; // Initialize with the correct index for Upload
   List<Map<String, dynamic>> attachments = [];
+  String? _fileName;
+  PlatformFile? _pickedFile;
   bool _isLoading = false;
   double _uploadProgress = 0.0;
+    final ApiService _apiService = ApiService();
 
   void _onItemTapped(int index) {
     if (_selectedIndex == index) return;
@@ -52,10 +56,10 @@ class _UserAddAttachmentState extends State<UserAddAttachment> {
       case 0:
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const HomePage()),
+          MaterialPageRoute(builder: (context) => const UploaderHomePage()),
         );
         break;
-      case 1:
+      case 2:
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => const UserMenuWindow()),
@@ -128,7 +132,7 @@ class _UserAddAttachmentState extends State<UserAddAttachment> {
           'status': 'Selected',
           'bytes': compressedImageData,
           'size': compressedImageData.length,
-          'isLoading': true, // Start loading state
+          'isLoading': true,
           'isUploading': false,
           'uploadProgress': 0.0,
         });
@@ -170,7 +174,6 @@ class _UserAddAttachmentState extends State<UserAddAttachment> {
           });
         });
 
-        // Simulate loading time for demo purposes
         Future.delayed(Duration(seconds: 1), () {
           setState(() {
             attachments[attachments.length - 1]['isLoading'] =
@@ -230,71 +233,36 @@ class _UserAddAttachmentState extends State<UserAddAttachment> {
     });
 
     try {
-      var request = http.MultipartRequest(
-        'POST',
-        Uri.parse(
-            'http://192.168.131.94/localconnect/UserUploadUpdate/upload_asset.php'),
+      var result = await _apiService.uploadFile(
+        docType: widget.transaction.docType.toString(),
+        docNo: widget.transaction.docNo.toString(),
+        dateTrans: widget.transaction.dateTrans.toString(),
+        fileName: sanitizeFileName(pickedFile.name),
+        fileBytes: pickedFile.bytes!,
       );
 
-      // Add the 'doc_type', 'doc_no', and 'date_trans' fields to the request
-      request.fields['doc_type'] = widget.transaction.docType.toString();
-      request.fields['doc_no'] = widget.transaction.docNo.toString();
-      request.fields['date_trans'] = widget.transaction.dateTrans.toString();
+      if (result['success']) {
+        setState(() {
+          attachments
+              .removeWhere((element) => element['name'] == pickedFile.name);
+          attachments.add({'name': pickedFile.name, 'status': 'Uploaded'});
+          developer.log('Attachments array after uploading: $attachments');
+        });
 
-      // Sanitize the filename
-      String sanitizedFileName = sanitizeFileName(pickedFile.name);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result['message']),
+          ),
+        );
 
-      // Add the file to the request
-      request.files.add(
-        http.MultipartFile.fromBytes(
-          'file',
-          pickedFile.bytes!,
-          filename: sanitizedFileName,
-        ),
-      );
-
-      developer.log('Uploading file: ${pickedFile.name}');
-      var response = await request.send();
-
-      if (response.statusCode == 200) {
-        var responseBody = await response.stream.bytesToString();
-        developer.log('Upload response: $responseBody');
-
-        try {
-          var result = jsonDecode(responseBody);
-          if (result['status'] == 'success') {
-            setState(() {
-              attachments.removeWhere(
-                  (element) => element['name'] == sanitizedFileName);
-              attachments
-                  .add({'name': sanitizedFileName, 'status': 'Uploaded'});
-              developer.log('Attachments array after uploading: $attachments');
-            });
-
-            // Show success dialog or handle success scenario
-          } else {
-            _showDialog(
-              context,
-              'Error',
-              'File upload failed: ${result['message']}',
-            );
-            developer.log('File upload failed: ${result['message']}');
-          }
-        } catch (e) {
-          _showDialog(
-            context,
-            'Error',
-            'Error uploading file. Please try again later.',
-          );
-          developer.log('Error parsing upload response: $e');
-        }
+        // Show success dialog or handle success scenario
       } else {
         _showDialog(
           context,
           'Error',
-          'File upload failed with status: ${response.statusCode}',
+          result['message'],
         );
-        developer.log('File upload failed with status: ${response.statusCode}');
+        developer.log('File upload failed: ${result['message']}');
       }
     } catch (e) {
       developer.log('Error uploading file: $e');
@@ -361,7 +329,7 @@ class _UserAddAttachmentState extends State<UserAddAttachment> {
   @override
   Widget build(BuildContext context) {
     Size screenSize = MediaQuery.of(context).size;
-
+    double screenHeight = screenSize.height;
     return Scaffold(
       appBar: AppBar(
         backgroundColor: const Color.fromARGB(255, 79, 128, 189),
@@ -408,7 +376,7 @@ class _UserAddAttachmentState extends State<UserAddAttachment> {
                     Navigator.pushReplacement(
                       context,
                       MaterialPageRoute(
-                          builder: (context) => const UploaderMenuWindow()),
+                          builder: (context) => const UserMenuWindow()),
                     );
                   },
                   icon: const Icon(
@@ -424,35 +392,39 @@ class _UserAddAttachmentState extends State<UserAddAttachment> {
       ),
       body: Column(
         children: [
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              elevation: 10,
-              backgroundColor: Colors.grey[200],
-              padding: const EdgeInsets.all(24.0),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16.0),
+          Container(height: 25),
+          Container(
+            width: screenSize.width - 50,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                elevation: 10,
+                backgroundColor: Colors.grey[200],
+                padding: const EdgeInsets.all(24.0),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16.0),
+                ),
               ),
-            ),
-            onPressed: _pickFile,
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: const [
-                  Text(
-                    'Click to upload',
-                    style: TextStyle(
-                      fontSize: 20.0,
+              onPressed: _pickFile,
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: const [
+                    Text(
+                      'Click to upload',
+                      style: TextStyle(
+                        fontSize: 20.0,
+                      ),
                     ),
-                  ),
-                  SizedBox(height: 12.0),
-                  Text(
-                    'Max. File Size: 5Mb',
-                    style: TextStyle(
-                      fontSize: 16.0,
-                      color: Colors.grey,
+                    SizedBox(height: 12.0),
+                    Text(
+                      'Max. File Size: 5Mb',
+                      style: TextStyle(
+                        fontSize: 16.0,
+                        color: Colors.grey,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -462,8 +434,8 @@ class _UserAddAttachmentState extends State<UserAddAttachment> {
               itemCount: attachments.length,
               itemBuilder: (context, index) {
                 var attachment = attachments[index];
-                int sizeInBytes =
-                    (attachment['bytes'] as Uint8List).lengthInBytes;
+                Uint8List? bytes = attachment['bytes'] as Uint8List?;
+                int sizeInBytes = bytes?.lengthInBytes ?? 0;
                 String sizeString;
 
                 if (sizeInBytes >= 1048576) {
@@ -479,6 +451,11 @@ class _UserAddAttachmentState extends State<UserAddAttachment> {
                   sizeString = '$sizeInBytes bytes';
                 }
 
+                bool isLoading = attachment['isLoading'] ?? false;
+                bool isUploading = attachment['isUploading'] ?? false;
+                double uploadProgress =
+                    (attachment['uploadProgress'] ?? 0).toDouble();
+
                 return Card(
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10.0),
@@ -486,22 +463,24 @@ class _UserAddAttachmentState extends State<UserAddAttachment> {
                     side: BorderSide(color: Colors.blue, width: 2), // Border
                   ),
                   child: ListTile(
-                    leading: attachment['isLoading']
+                    leading: isLoading
                         ? const CircularProgressIndicator()
-                        : Image.memory(
-                            attachment['bytes'],
-                            width: 50,
-                            height: 50,
-                            fit: BoxFit.cover,
-                          ),
+                        : (bytes != null
+                            ? Image.memory(
+                                bytes,
+                                width: 50,
+                                height: 50,
+                                fit: BoxFit.cover,
+                              )
+                            : const Icon(Icons.image_not_supported)),
                     title: Text(attachment['name']),
                     subtitle: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text('Size: $sizeString'),
-                        if (attachment['isUploading'])
+                        if (isUploading)
                           LinearProgressIndicator(
-                            value: attachment['uploadProgress'] / 100,
+                            value: uploadProgress / 100,
                             minHeight: 5,
                             color: Colors.green,
                             backgroundColor: Colors.grey[200],
@@ -514,7 +493,9 @@ class _UserAddAttachmentState extends State<UserAddAttachment> {
                         IconButton(
                           icon: const Icon(Icons.zoom_in),
                           onPressed: () {
-                            _showImageDialog(attachment['bytes'], attachment);
+                            if (bytes != null) {
+                              _showImageDialog(bytes, attachment);
+                            }
                           },
                         ),
                         IconButton(
@@ -528,9 +509,8 @@ class _UserAddAttachmentState extends State<UserAddAttachment> {
                       ],
                     ),
                     onTap: () {
-                      if (!attachment['isUploading'] &&
-                          !attachment['isLoading']) {
-                        _showImageDialog(attachment['bytes'], attachment);
+                      if (!isUploading && !isLoading && bytes != null) {
+                        _showImageDialog(bytes, attachment);
                       }
                     },
                   ),
@@ -596,6 +576,7 @@ class _UserAddAttachmentState extends State<UserAddAttachment> {
                           transaction: widget.transaction,
                           selectedDetails: [],
                           attachments: attachmentsString,
+                          // secAttachments: [],
                         ),
                       ),
                     );
@@ -614,9 +595,24 @@ class _UserAddAttachmentState extends State<UserAddAttachment> {
             ),
         ],
       ),
-      bottomNavigationBar: BottomNavBar(
+      bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
+        selectedItemColor: const Color.fromARGB(255, 79, 128, 189),
         onTap: _onItemTapped,
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.upload_file_outlined),
+            label: 'Upload',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.quiz),
+            label: 'No Support',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.menu_sharp),
+            label: 'Menu',
+          ),
+        ],
       ),
     );
   }

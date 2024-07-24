@@ -5,8 +5,8 @@ import 'package:intl/intl.dart';
 
 class ScrollableTableViewWidget extends StatelessWidget {
   final List<String> headers;
-  final List<Transaction> transactions;
-  final Function(Transaction) onRowTap;
+  final List<UserTransaction> transactions;
+  final Function(UserTransaction) onRowTap;
 
   const ScrollableTableViewWidget({
     Key? key,

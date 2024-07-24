@@ -6,17 +6,19 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:developer' as developer;
-import '../admin_screens/notifications.dart';
+import '../../api_services/transmitter_api.dart';
 import '../models/user_transaction.dart';
 import '../transmittal_screens/transmitter_homepage.dart';
 import 'fetching_uploader_data.dart';
+import 'transmittal_notification.dart';
 import 'transmitter_add_attachment.dart';
 import 'uploader_menu.dart';
 import 'uploader_viewfiles.dart'; // Import your TransmitView widget here
 import 'no_support_transmit.dart';
-
+import 'package:badges/badges.dart' as badges;
+import 'package:badges/badges.dart';
 class TransmitterSendAttachment extends StatefulWidget {
-  final Transaction transaction;
+  final UserTransaction transaction;
   final List<Map<String, String>> attachments;
   final List<Map<String, String>> secAttachments;
 
@@ -37,11 +39,29 @@ class TransmitterSendAttachment extends StatefulWidget {
 class _TransmitterSendAttachmentState extends State<TransmitterSendAttachment> {
   int _selectedIndex = 0;
   bool _isLoading = false;
+ int notificationCount = 0;
+  final TransmitterAPI _apiService = TransmitterAPI();
 
   @override
   void initState() {
     super.initState();
     //developer.log('TransmitterSendAttachment initState: secAttachments = ${widget.secAttachments}');
+  }
+  
+     Future<void> _countNotif() async {
+    try {
+      List<UserTransaction> transactions = await _apiService.countNotification();
+      setState(() {
+        notificationCount = transactions
+            .where((transaction) =>
+                transaction.onlineProcessingStatus == 'TND' ||
+                transaction.onlineProcessingStatus == 'T' &&
+                    transaction.notification == 'N')
+            .length;
+      });
+    } catch (e) {
+      throw Exception('Failed to fetch transaction details: $e');
+    }
   }
 
   String createDocRef(String docType, String docNo) {
@@ -91,186 +111,34 @@ class _TransmitterSendAttachmentState extends State<TransmitterSendAttachment> {
     }
   }
 
-  Future<void> _uploadTransactionOrFile() async {
-    setState(() {
-      _isLoading = true;
-    });
+  Future<void> _uploadTransactionOrFileUploader() async {
+  setState(() {
+    _isLoading = true;
+  });
 
-    bool allUploadedSuccessfully = true;
-    List<String> errorMessages = [];
+  try {
+    bool uploadSuccess = await TransmitterAPI().uploadTransactionOrFileUploader(
+      docType: widget.transaction.docType.toString(),
+      docNo: widget.transaction.docNo.toString(),
+      dateTrans: widget.transaction.dateTrans.toString(),
+      attachments: widget.attachments.toList(),
+      // secAttachments: widget.secAttachments.toList(),
+    );
 
-    try {
-      var uri = Uri.parse(
-          'http://192.168.131.94/localconnect/UserUploadUpdate/update_u.php');
-
-      // Process attachments
-      for (var attachment in widget.attachments.toList()) {
-        if (attachment['name'] != null &&
-            attachment['bytes'] != null &&
-            attachment['size'] != null) {
-          var request = http.MultipartRequest('POST', uri);
-
-          request.fields['doc_type'] = widget.transaction.docType.toString();
-          request.fields['doc_no'] = widget.transaction.docNo.toString();
-          request.fields['date_trans'] =
-              widget.transaction.dateTrans.toString();
-
-          var pickedFile = PlatformFile(
-            name: attachment['name']!,
-            bytes: Uint8List.fromList(utf8.encode(attachment['bytes']!)),
-            size: int.parse(attachment['size']!),
-          );
-
-          if (pickedFile.bytes != null) {
-            request.files.add(
-              http.MultipartFile.fromBytes(
-                'file',
-                pickedFile.bytes!,
-                filename: pickedFile.name,
-              ),
-            );
-
-            developer.log('Uploading file: ${pickedFile.name}');
-
-            var response = await request.send();
-
-            if (response.statusCode == 200) {
-              var responseBody = await response.stream.bytesToString();
-              developer.log('Upload response: $responseBody');
-
-              if (responseBody.startsWith('{') && responseBody.endsWith('}')) {
-                var result = jsonDecode(responseBody);
-
-                if (result['status'] == 'success') {
-                  setState(() {
-                    widget.attachments.removeWhere(
-                        (element) => element['name'] == pickedFile.name);
-                    widget.attachments
-                        .add({'name': pickedFile.name, 'status': 'Uploaded'});
-                    developer.log(
-                        'Attachments array after uploading: ${widget.attachments}');
-                  });
-                } else {
-                  allUploadedSuccessfully = false;
-                  errorMessages.add(result['message']);
-                  developer.log('File upload failed: ${result['message']}');
-                }
-              } else {
-                allUploadedSuccessfully = false;
-                errorMessages.add('Invalid response from server');
-                developer.log('Invalid response from server: $responseBody');
-              }
-            } else {
-              allUploadedSuccessfully = false;
-              errorMessages.add(
-                  'File upload failed with status: ${response.statusCode}');
-              developer.log(
-                  'File upload failed with status: ${response.statusCode}');
-            }
-          } else {
-            allUploadedSuccessfully = false;
-            errorMessages.add('Error: attachment bytes are null or empty');
-            developer.log('Error: attachment bytes are null or empty');
-          }
-        } else {
-          allUploadedSuccessfully = false;
-          errorMessages.add('Error: attachment name, bytes or size is null');
-          developer.log('Error: attachment name, bytes or size is null');
-        }
-      }
-
-      // Process secAttachments
-      for (var secAttachment in widget.secAttachments.toList()) {
-        if (secAttachment['name'] != null &&
-            secAttachment['bytes'] != null &&
-            secAttachment['size'] != null) {
-          var request = http.MultipartRequest('POST', uri);
-
-          request.fields['doc_type'] = widget.transaction.docType.toString();
-          request.fields['doc_no'] = widget.transaction.docNo.toString();
-          request.fields['date_trans'] =
-              widget.transaction.dateTrans.toString();
-
-          var pickedFile = PlatformFile(
-            name: secAttachment['name']!,
-            bytes: Uint8List.fromList(utf8.encode(secAttachment['bytes']!)),
-            size: int.parse(secAttachment['size']!),
-          );
-
-          if (pickedFile.bytes != null) {
-            request.files.add(
-              http.MultipartFile.fromBytes(
-                'file',
-                pickedFile.bytes!,
-                filename: pickedFile.name,
-              ),
-            );
-
-            developer.log('Uploading file: ${pickedFile.name}');
-
-            var response = await request.send();
-
-            if (response.statusCode == 200) {
-              var responseBody = await response.stream.bytesToString();
-              developer.log('Upload response: $responseBody');
-
-              if (responseBody.startsWith('{') && responseBody.endsWith('}')) {
-                var result = jsonDecode(responseBody);
-
-                if (result['status'] == 'success') {
-                  setState(() {
-                    widget.secAttachments.removeWhere(
-                        (element) => element['name'] == pickedFile.name);
-                    widget.secAttachments
-                        .add({'name': pickedFile.name, 'status': 'Uploaded'});
-                    developer.log(
-                        'secAttachments array after uploading: ${widget.secAttachments}');
-                  });
-                } else {
-                  allUploadedSuccessfully = false;
-                  errorMessages.add(result['message']);
-                  developer.log('File upload failed: ${result['message']}');
-                }
-              } else {
-                allUploadedSuccessfully = false;
-                errorMessages.add('Invalid response from server');
-                developer.log('Invalid response from server: $responseBody');
-              }
-            } else {
-              allUploadedSuccessfully = false;
-              errorMessages.add(
-                  'File upload failed with status: ${response.statusCode}');
-              developer.log(
-                  'File upload failed with status: ${response.statusCode}');
-            }
-          } else {
-            allUploadedSuccessfully = false;
-            errorMessages.add('Error: attachment bytes are null or empty');
-            developer.log('Error: attachment bytes are null or empty');
-          }
-        } else {
-          allUploadedSuccessfully = false;
-          errorMessages.add('Error: attachment name, bytes or size is null');
-          developer.log('Error: attachment name, bytes or size is null');
-        }
-      }
-
-      if (allUploadedSuccessfully) {
-        _showDialog(context, 'Success', 'All files uploaded successfully!');
-      } else {
-        _showDialog(context, 'Error',
-            'Error uploading files:\n${errorMessages.join('\n')}');
-      }
-    } catch (e) {
-      developer.log('Error uploading file or transaction: $e');
-      _showDialog(
-          context, 'Error', 'Error uploading file. Please try again later.');
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
+    if (uploadSuccess) {
+      _showDialog(context, 'Success', 'All files uploaded successfully!');
+    } else {
+      _showDialog(context, 'Error', 'Error uploading files.');
     }
+  } catch (e) {
+    developer.log('Error uploading transaction or file: $e');
+    _showDialog(context, 'Error', 'Error uploading file. Please try again later.');
+  } finally {
+    setState(() {
+      _isLoading = false;
+    });
   }
+}
 
   void _showDialog(BuildContext context, String title, String content) {
     showDialog(
@@ -290,7 +158,7 @@ class _TransmitterSendAttachmentState extends State<TransmitterSendAttachment> {
     );
   }
 
-  Widget buildDetailsCard(Transaction detail) {
+  Widget buildDetailsCard(UserTransaction detail) {
     return Container(
       height: 420,
       child: Card(
@@ -333,7 +201,7 @@ class _TransmitterSendAttachmentState extends State<TransmitterSendAttachment> {
     );
   }
 
-  Widget buildTable(Transaction detail) {
+  Widget buildTable(UserTransaction detail) {
     return Table(
       columnWidths: {
         0: FlexColumnWidth(1),
@@ -412,7 +280,7 @@ class _TransmitterSendAttachmentState extends State<TransmitterSendAttachment> {
             ),
           ),
                 Image.asset(
-                  'logo.png',
+                  'assets/logo.png',
                   width: 60,
                   height: 55,
                 ),
@@ -430,39 +298,59 @@ class _TransmitterSendAttachmentState extends State<TransmitterSendAttachment> {
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                Container(
-                  margin: EdgeInsets.only(right: screenSize.width * 0.02),
-                  child: IconButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (context) => NotificationScreen()),
-                      );
-                    },
-                    icon: const Icon(
-                      Icons.notifications,
-                      size: 24,
-                      color: Color.fromARGB(255, 233, 227, 227),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Container(
+                      margin: EdgeInsets.only(right: screenSize.width * 0.02),
+                      child: badges.Badge(
+                        badgeContent: Text(
+                          notificationCount > 0 ? '$notificationCount' : '',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                        badgeStyle: BadgeStyle(
+                          badgeColor: notificationCount > 0
+                              ? Colors.red
+                              : Colors.transparent,
+                          padding: EdgeInsets.all(6),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: IconButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (context) => TransmittalNotification()),
+                            );
+                          },
+                          icon: const Icon(
+                            Icons.notifications,
+                            size: 24,
+                            color: Color.fromARGB(255, 233, 227, 227),
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-                IconButton(
-                  onPressed: () {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                          builder: (context) => const UploaderMenuWindow()),
-                    );
-                  },
-                  icon: const Icon(
-                    Icons.person,
-                    size: 24,
-                    color: Color.fromARGB(255, 233, 227, 227),
-                  ),
+                    IconButton(
+                      onPressed: () {
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                              builder: (context) => UploaderMenuWindow()),
+                        );
+                      },
+                      icon: const Icon(
+                        Icons.person,
+                        size: 24,
+                        color: Color.fromARGB(255, 233, 227, 227),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
+
+
           ],
         ),
       ),
@@ -509,7 +397,7 @@ class _TransmitterSendAttachmentState extends State<TransmitterSendAttachment> {
                       onPressed: _isLoading
                           ? null
                           : () {
-                              _uploadTransactionOrFile();
+                              _uploadTransactionOrFileUploader();
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(

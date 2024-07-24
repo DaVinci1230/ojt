@@ -51,7 +51,7 @@ class _MenuState extends State<ReprocessMenuWindow> {
             Row(
               children: [
                 Image.asset(
-                  'logo.png',
+                  'assets/logo.png',
                   width: screenSize.width * 0.15, 
                   height: screenSize.height * 0.1,
                 ),

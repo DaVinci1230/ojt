@@ -10,6 +10,7 @@ import '../models/user_transaction.dart';
 import 'package:badges/badges.dart' as badges;
 import 'package:badges/badges.dart'; 
 
+import '../../api_services/transmitter_api.dart';
 
 class TransmitterHomePage extends StatefulWidget {
   const TransmitterHomePage({Key? key}) : super(key: key);
@@ -25,6 +26,7 @@ class _TransmitterHomePageState extends State<TransmitterHomePage> {
   int _uploadingCount = 0;
   bool isLoading = true;
   int notificationCount = 0; 
+  final TransmitterAPI _apiService = TransmitterAPI();
 
   @override
   void initState() {
@@ -33,94 +35,54 @@ class _TransmitterHomePageState extends State<TransmitterHomePage> {
   }
 
 
-Future<Map<String, int>> fetchNewNotificationCount() async {
-  try {
-    final response = await http.get(Uri.parse('http://127.0.0/localconnect/notification_count.php'));
-
-    if (response.statusCode == 200) {
-      final jsonResponse = jsonDecode(response.body);
-      return {
-        'reprocessingCount': jsonResponse['reprocessing_count'] ?? 0,
-        'transmittalCount': jsonResponse['transmittal_count'] ?? 0,
-        'uploadingCount': jsonResponse['uploading_count'] ?? 0,
-      };
-    } else {
-      throw Exception('Failed to load notification count');
-    }
-  } catch (e) {
-    print('Error fetching notification count: $e');
-    return {
-      'reprocessingCount': 0,
-      'transmittalCount': 0,
-      'uploadingCount': 0,
-    };
+ void updateNotificationCount(int reprocessingCount, int transmittalCount, int uploadingCount) {
+    setState(() {
+      notificationCount = reprocessingCount + transmittalCount + uploadingCount;
+      _reprocessingCount = reprocessingCount;
+      _transmittalCount = transmittalCount;
+      _uploadingCount = uploadingCount;
+    });
   }
-}
 
-
-void updateNotificationCount(int reprocessingCount, int transmittalCount, int uploadingCount) {
-  setState(() {
-    notificationCount = reprocessingCount + transmittalCount + uploadingCount;
-    _reprocessingCount = reprocessingCount;
-    _transmittalCount = transmittalCount;
-    _uploadingCount = uploadingCount;
-  });
-}
-
-
-void onNewTransactionReceived() async {
-  final counts = await fetchNewNotificationCount();
-  updateNotificationCount(
-    counts['reprocessingCount']!,
-    counts['transmittalCount']!,
-    counts['uploadingCount']!,
-  );
-}
+  void onNewTransactionReceived() async {
+    final counts = await TransmitterAPI().fetchNewNotificationCount();
+    updateNotificationCount(
+      counts['reprocessingCount']!,
+      counts['transmittalCount']!,
+      counts['uploadingCount']!,
+    );
+  }
 
   Future<void> _fetchTransactionDetails() async {
     try {
-      var url =
-          Uri.parse('http://192.168.131.94/localconnect/count_transaction.php');
-      var response = await http.get(url);
+      List<UserTransaction> fetchedTransactions = await TransmitterAPI().fetchTransactionDetails();
 
-      if (response.statusCode == 200) {
-        var jsonData = jsonDecode(response.body);
-        if (jsonData is List) {
-          List<Transaction> fetchedTransactions = jsonData
-              .map((transaction) => Transaction.fromJson(transaction))
-              .toList();
-          fetchedTransactions
-              .sort((a, b) => b.transDate.compareTo(a.transDate));
-
-          setState(() {
-            _reprocessingCount = fetchedTransactions
-                .where((transaction) =>
-                    transaction.onlineProcessingStatus == 'R' &&
-                    transaction.transactionStatus == 'R')
-                .length;
-            _transmittalCount = fetchedTransactions
-                .where((transaction) =>
-                    transaction.onlineProcessingStatus == 'U' ||
-                    transaction.onlineProcessingStatus == 'ND')
-                .length;
-            _uploadingCount = fetchedTransactions
-                .where((transaction) =>
-                    transaction.transactionStatus == 'R' &&
-                    transaction.onlineProcessingStatus == '')
-                .length;
-            isLoading = false;
-          });
-        } else {
-          throw Exception('Unexpected response format');
-        }
-      } else {
-        throw Exception(
-            'Failed to load transaction details: ${response.statusCode}');
-      }
+      setState(() {
+        _reprocessingCount = fetchedTransactions
+            .where((transaction) =>
+                transaction.onlineProcessingStatus == 'R' &&
+                transaction.transactionStatus == 'R')
+            .length;
+        _transmittalCount = fetchedTransactions
+            .where((transaction) =>
+                transaction.onlineProcessingStatus == 'U' ||
+                transaction.onlineProcessingStatus == 'ND')
+            .length;
+        _uploadingCount = fetchedTransactions
+            .where((transaction) =>
+                transaction.transactionStatus == 'R' &&
+                transaction.onlineProcessingStatus == '')
+            .length;
+        isLoading = false;
+      });
     } catch (e) {
-      throw Exception('Failed to fetch transaction details: $e');
+      print('Failed to fetch transaction details: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to fetch transaction details: $e')),
+      );
     }
   }
+
 
   String _plusS(int pendingCount) {
     if (pendingCount > 1) {

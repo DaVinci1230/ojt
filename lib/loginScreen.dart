@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '/transmittal_screens/transmitter_homepage.dart';
 import 'admin_screens/Admin_Homepage.dart';
-import 'screens_user/uploader_hompage.dart';
+import 'screens_user/uploading/uploader_hompage.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
@@ -21,7 +21,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> loginUser(BuildContext context, String username, String password) async {
     try {
-      final url = Uri.parse('http://192.168.131.94/localconnect/login.php');
+      final url = Uri.parse('https://backend-approval.azurewebsites.net/login.php');
       final response = await http.post(
         url,
         body: {
@@ -146,7 +146,7 @@ class _LoginScreenState extends State<LoginScreen> {
             top: screenHeight * 0.03,
             right: screenWidth * 0.035,
             child: Image.asset(
-              'logo.png',
+              'assets/logo.png',
               width: screenWidth * 0.32,
               height: screenHeight * 0.2,
             ),

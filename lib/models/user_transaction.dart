@@ -1,4 +1,4 @@
-class Transaction {
+class UserTransaction {
   final String docType;
   final String docNo;
   final String transactingParty;
@@ -13,11 +13,12 @@ class Transaction {
   final String bankName;
   final String checkDate;
   final String dateTrans;
-  String? onlineProcessingStatus; // Make it nullable
+  String? onlineProcessingStatus;
   String? onlineTransactionStatus;
-  final  String onlineProcessDate;
+  final String onlineProcessDate;
   final String notification;
-  Transaction({
+
+  UserTransaction({
     required this.docType,
     required this.docNo,
     required this.transactingParty,
@@ -33,15 +34,18 @@ class Transaction {
     required this.checkDate,
     required this.dateTrans,
     this.onlineProcessingStatus,
+    this.onlineTransactionStatus,
     required this.onlineProcessDate,
     required this.notification,
   });
 
-  factory Transaction.fromJson(Map<String, dynamic> json) {
-    String dateString = json['date_trans'];
-    DateTime parsedDate = DateTime.parse(dateString);
+  factory UserTransaction.fromJson(Map<String, dynamic> json) {
+    String dateString = json['date_trans'] ?? '';
+    DateTime parsedDate = dateString.isNotEmpty
+        ? DateTime.parse(dateString)
+        : DateTime.now(); // Default to current date if empty
 
-    return Transaction(
+    return UserTransaction(
       docType: json['doc_type'].toString(),
       docNo: json['doc_no'].toString(),
       checkAm: json['check_amount'].toString(),
@@ -56,9 +60,10 @@ class Transaction {
       bankName: json['check_drawee_bank'].toString(),
       checkDate: json['check_date'] ?? '',
       dateTrans: json['date_trans'].toString(),
-      onlineProcessingStatus: json['online_processing_status'], // Initialize with null safety
+      onlineProcessingStatus: json['online_processing_status'],
+      onlineTransactionStatus: json['online_transaction_status'],
       onlineProcessDate: json['online_process_date'] ?? '',
-      notification: json['notification'].toString(),
+      notification: json ['notification'] ?? '',
     );
   }
 
@@ -76,20 +81,21 @@ class Transaction {
         return 'Unknown';
     }
   }
-    String get onlineProcessingStatusWord {
+
+  String get onlineProcessingStatusWord {
     switch (onlineProcessingStatus) {
       case 'A':
         return 'Approved';
       case 'R':
-        return 'Returned'; 
+        return 'Returned';
       case 'U':
         return 'On Process';
       case 'ND':
         return 'On Process';
+      case 'T':
+        return 'On Approval';
       case 'TND':
         return 'On Approval';
-      case 'T':
-        return 'On Process';
       default:
         return 'Rejected';
     }

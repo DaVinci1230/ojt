@@ -2,19 +2,22 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:ojt/transmittal_screens/no_support_transmit.dart';
-import '/screens_user/no_support.dart';
+import '/transmittal_screens/no_support_transmit.dart';
+
 import 'package:http/http.dart' as http;
+import '/api_services/transmitter_api.dart';	
+import 'package:badges/badges.dart' as badges;
+import 'package:badges/badges.dart';
 
-
-import '../admin_screens/notifications.dart';
 import '../models/user_transaction.dart';
-import '../screens_user/user_menu.dart';
+
 import 'fetching_transmital_data.dart';
+import 'transmittal_notification.dart';
 import 'transmitter_homepage.dart';
+import 'transmitter_menu.dart';
 
 class NoSupportTransmitDetails extends StatefulWidget {
-  final Transaction transaction;
+  final UserTransaction transaction;
   final List<String> selectedDetails;
 
   NoSupportTransmitDetails({
@@ -34,6 +37,10 @@ String createDocRef(String docType, String docNo) {
 class _NoSupportTransmitDetailsState extends State<NoSupportTransmitDetails> {
   int _selectedIndex = 1;
   bool _isLoading = false;
+   int notificationCount = 0;
+  final TransmitterAPI _apiService = TransmitterAPI();
+  
+
 
   @override
   void initState() {
@@ -69,19 +76,36 @@ class _NoSupportTransmitDetailsState extends State<NoSupportTransmitDetails> {
         );
         break;
       case 1:
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const NoSupportScreen()),
-        );
+        // Navigator.pushReplacement(
+        //   context,
+        //   MaterialPageRoute(builder: (context) => const NoSupportTransmit()),
+        // );
         break;
       case 2:
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const MenuWindow()),
+          MaterialPageRoute(builder: (context) => const TransmitMenuWindow()),
         );
         break;
     }
   }
+
+  Future<void> _countNotif() async {
+    try {
+      List<UserTransaction> transactions = await _apiService.countNotification();
+      setState(() {
+        notificationCount = transactions
+            .where((transaction) =>
+                transaction.onlineProcessingStatus == 'TND' ||
+                transaction.onlineProcessingStatus == 'T' &&
+                    transaction.notification == 'N')
+            .length;
+      });
+    } catch (e) {
+      throw Exception('Failed to fetch transaction details: $e');
+    }
+  }
+
     void _navigateToTransmitterHomePage(BuildContext context) {
   Navigator.push(
     context,
@@ -96,45 +120,30 @@ class _NoSupportTransmitDetailsState extends State<NoSupportTransmitDetails> {
   });
 
   try {
-    var uri = Uri.parse('http://192.168.131.94/localconnect/UserUploadUpdate/transmitter/update_ops_tnd.php');
-    var request = http.Request('POST', uri);
+    var result = await TransmitterAPI().uploadTransactionTransmitNoSupportDetails(
+      widget.transaction.docType,
+      widget.transaction.docNo,
+      widget.transaction.dateTrans,
+    );
 
-    // URL-encode the values
-    var requestBody = 'doc_type=${Uri.encodeComponent(widget.transaction.docType)}&doc_no=${Uri.encodeComponent(widget.transaction.docNo)}&date_trans=${Uri.encodeComponent(widget.transaction.dateTrans)}';
+    if (result['status'] == 'Success') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result['message'])),
+      );
 
-    request.headers['Content-Type'] = 'application/x-www-form-urlencoded';
-    request.body = requestBody;
-
-    var response = await request.send();
-
-    if (response.statusCode == 200) {
-      var responseBody = await response.stream.bytesToString();
-      var result = jsonDecode(responseBody);
-
-      if (result['status'] == 'Success') {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(result['message'])),
-        );
-
-        // Navigate back to previous screen (DisbursementDetailsScreen)
-        Navigator.pop(context);
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(result['message'])),
-        );
-      }
+      // Navigate back to previous screen (DisbursementDetailsScreen)
+      Navigator.pop(context);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text(
-                'Transaction upload failed with status: ${response.statusCode}')),
+        SnackBar(content: Text(result['message'])),
       );
     }
   } catch (e) {
     print('Error uploading transaction: $e');
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-          content: Text('Error uploading transaction. Please try again later.')),
+        content: Text('Error uploading transaction. Please try again later.'),
+      ),
     );
   } finally {
     setState(() {
@@ -143,7 +152,8 @@ class _NoSupportTransmitDetailsState extends State<NoSupportTransmitDetails> {
   }
 }
 
-  Widget buildDetailsCard(Transaction detail) {
+
+  Widget buildDetailsCard(UserTransaction detail) {
     return Container(
       child: Card(
         semanticContainer: true,
@@ -203,7 +213,7 @@ class _NoSupportTransmitDetailsState extends State<NoSupportTransmitDetails> {
     );
   }
 
-  Widget buildTable(Transaction detail) {
+  Widget buildTable(UserTransaction detail) {
     return Table(
   columnWidths: {
     0: FlexColumnWidth(1),
@@ -265,7 +275,7 @@ class _NoSupportTransmitDetailsState extends State<NoSupportTransmitDetails> {
             Row(
               children: [
                 Image.asset(
-                  'logo.png',
+                  'assets/logo.png',
                   width: 60,
                   height: 55,
                 ),
@@ -280,37 +290,61 @@ class _NoSupportTransmitDetailsState extends State<NoSupportTransmitDetails> {
                 ),
               ],
             ),
-            Row(
+           Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                Container(
-                  margin: EdgeInsets.only(right: screenSize.width * 0.02),
-                  child: IconButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => NotificationScreen(),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Container(
+                      margin: EdgeInsets.only(right: screenSize.width * 0.02),
+                      child: badges.Badge(
+                        badgeContent: Text(
+                          notificationCount > 0 ? '$notificationCount' : '',
+                          style: TextStyle(color: Colors.white),
                         ),
-                      );
-                    },
-                    icon: const Icon(
-                      Icons.notifications,
-                      size: 24,
-                      color: Color.fromARGB(255, 233, 227, 227),
+                        badgeStyle: BadgeStyle(
+                          badgeColor: notificationCount > 0
+                              ? Colors.red
+                              : Colors.transparent,
+                          padding: EdgeInsets.all(6),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: IconButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (context) => TransmittalNotification()),
+                            );
+                          },
+                          icon: const Icon(
+                            Icons.notifications,
+                            size: 24,
+                            color: Color.fromARGB(255, 233, 227, 227),
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-                IconButton(
-                  onPressed: () {},
-                  icon: const Icon(
-                    Icons.person,
-                    size: 24,
-                    color: Color.fromARGB(255, 233, 227, 227),
-                  ),
+                    IconButton(
+                      onPressed: () {
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                              builder: (context) => TransmitMenuWindow()),
+                        );
+                      },
+                      icon: const Icon(
+                        Icons.person,
+                        size: 24,
+                        color: Color.fromARGB(255, 233, 227, 227),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
+
           ],
         ),
       ),

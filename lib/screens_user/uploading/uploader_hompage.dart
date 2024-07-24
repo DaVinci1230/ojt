@@ -1,13 +1,14 @@
-import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:ojt/screens_user/reprocessing/user_reprocessing_menu.dart';
-import '../../transmittal_screens/fetch_reprocessing.dart';
+import '../reprocessing/reprocessing.dart';
 import '../../widgets/navBar.dart';
+import '../uploader_notification.dart';
 import 'user_menu.dart';
 import 'user_upload.dart';
-import 'package:http/http.dart' as http;
 import '../../models/user_transaction.dart';
+import '../../api_services/api_services.dart';
+import 'package:badges/badges.dart' as badges;
+import 'package:badges/badges.dart'; 
 
 class UploaderHomePage extends StatefulWidget {
   const UploaderHomePage({Key? key}) : super(key: key);
@@ -20,51 +21,66 @@ class _UploaderHomePageState extends State<UploaderHomePage> {
   int _selectedIndex = 0;
   int _reprocessingCount = 0;
   int _uploadingCount = 0;
+   int notificationCount = 0;
   bool isLoading = true;
+  final ApiService _apiService = ApiService();
 
   @override
   void initState() {
     super.initState();
     _fetchTransactionDetails();
+    _countNotif();
+  }
+
+  Future<void> _countNotif() async {
+    try {
+      List<UserTransaction> transactions =
+          await _apiService.fetchTransactionDetails();
+      setState(() {
+        notificationCount = transactions
+            .where((transaction) =>
+                transaction.onlineProcessingStatus == 'U' ||
+                transaction.onlineProcessingStatus == 'ND' ||
+                transaction.onlineProcessingStatus == 'R' &&
+                    transaction.notification == 'N')
+            .length;
+      });
+    } catch (e) {
+      throw Exception('Failed to fetch transaction details: $e');
+    }
   }
 
   Future<void> _fetchTransactionDetails() async {
+    setState(() {
+      isLoading = true;
+    });
+
     try {
-      var url =
-          Uri.parse('http://192.168.131.94/localconnect/count_transaction.php');
-      var response = await http.get(url);
+      List<UserTransaction> fetchedTransactions =
+          await ApiService().fetchTransactionDetails();
 
-      if (response.statusCode == 200) {
-        var jsonData = jsonDecode(response.body);
-        if (jsonData is List) {
-          List<Transaction> fetchedTransactions = jsonData
-              .map((transaction) => Transaction.fromJson(transaction))
-              .toList();
-          fetchedTransactions
-              .sort((a, b) => b.transDate.compareTo(a.transDate));
+      setState(() {
+        _reprocessingCount = fetchedTransactions
+            .where((transaction) =>
+                transaction.onlineProcessingStatus == 'R' &&
+                transaction.transactionStatus == 'R')
+            .length;
 
-          setState(() {
-            _reprocessingCount = fetchedTransactions
-                .where((transaction) =>
-                    transaction.onlineProcessingStatus == 'R' &&
-                    transaction.transactionStatus == 'R')
-                .length;
-            _uploadingCount = fetchedTransactions
-                .where((transaction) =>
-                    transaction.transactionStatus == 'R' &&
-                    transaction.onlineProcessingStatus == '')
-                .length;
-            isLoading = false;
-          });
-        } else {
-          throw Exception('Unexpected response format');
-        }
-      } else {
-        throw Exception(
-            'Failed to load transaction details: ${response.statusCode}');
-      }
+        _uploadingCount = fetchedTransactions
+            .where((transaction) =>
+                transaction.transactionStatus == 'R' &&
+                transaction.onlineProcessingStatus == '')
+            .length;
+
+        isLoading = false;
+      });
     } catch (e) {
-      throw Exception('Failed to fetch transaction details: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to fetch transaction details: $e'),
+          duration: Duration(seconds: 5),
+        ),
+      );
     }
   }
 
@@ -132,22 +148,40 @@ class _UploaderHomePageState extends State<UploaderHomePage> {
               children: [
                 Container(
                   margin: EdgeInsets.only(right: screenSize.width * 0.02),
-                  child: IconButton(
-                    onPressed: () {
-                      // Navigator.push(
-                      //   context,
-                      //   MaterialPageRoute(builder: (context) => NotificationScreen()),
-                      // );
-                    },
-                    icon: const Icon(
-                      Icons.notifications,
-                      size: 24,
-                      color: Color.fromARGB(255, 233, 227, 227),
+                  child: badges.Badge(
+                    badgeContent: Text(
+                      '$notificationCount', // Display the number of notifications
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    badgeStyle: BadgeStyle(
+                      badgeColor: Colors.red,
+                      padding: EdgeInsets.all(6),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: IconButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (context) => UploaderNotification()),
+                        );
+                      },
+                      icon: const Icon(
+                        Icons.notifications,
+                        size: 24,
+                        color: Color.fromARGB(255, 233, 227, 227),
+                      ),
                     ),
                   ),
                 ),
                 IconButton(
-                  onPressed: () {},
+                  onPressed: () {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                          builder: (context) => const UserMenuWindow()),
+                    );
+                  },
                   icon: const Icon(
                     Icons.person,
                     size: 24,
@@ -180,7 +214,7 @@ class _UploaderHomePageState extends State<UploaderHomePage> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => const ReprocessingFetchProcess(),
+                        builder: (context) => const Reprocess(),
                       ),
                     );
                   },

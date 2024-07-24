@@ -37,7 +37,7 @@ Future<String>_loadAsset(String path) async{
   Future<List<Attachment>> _fetchAttachments() async {
     try {
       var url = Uri.parse(
-          'http://192.168.131.94/localconnect/view_attachment.php?doc_type=${widget.docType}&doc_no=${widget.docNo}');
+          'https://backend-approval.azurewebsites.net/view_attachment.php?doc_type=${widget.docType}&doc_no=${widget.docNo}');
       var response = await http.get(url);
 
       if (response.statusCode == 200) {
@@ -57,20 +57,24 @@ Future<String>_loadAsset(String path) async{
     }
   }
 
+
   Widget _buildAttachmentWidget(Attachment attachment) {
     String fileName = attachment.fileName.toLowerCase();
+    String fileUrl =
+        'https://backend-approval.azurewebsites.net/getpics.php?docType=${Uri.encodeComponent(widget.docType)}&docNo=${Uri.encodeComponent(widget.docNo)}';
+
     if (fileName.endsWith('.jpeg') ||
         fileName.endsWith('.jpg') ||
         fileName.endsWith('.png')) {
-      return Image.asset(
-        'assets/$fileName',
+      return Image.network(
+        fileUrl,
         width: MediaQuery.of(context).size.width * 0.95,
         height: MediaQuery.of(context).size.height * 0.62,
         fit: BoxFit.fill,
       );
     } else if (fileName.endsWith('.pdf')) {
       return FutureBuilder(
-        future: _getPdfFile(attachment.fileName),
+        future: _getPdfFile(fileUrl),
         builder: (context, snapshot) {
           if (snapshot.hasData) {
             return SizedBox(
@@ -95,7 +99,6 @@ Future<String>_loadAsset(String path) async{
       return Center(child: Text('Unsupported file type'));
     }
   }
-
   Future<String> _getPdfFile(String filePath) async {
     try {
       return filePath;
@@ -108,26 +111,27 @@ Future<String>_loadAsset(String path) async{
     showDialog(
       context: context,
       builder: (context) => Dialog(
-          child: Container(
-        child: Column(
-          mainAxisSize: MainAxisSize.max,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            GestureDetector(
-              onTap: () {
-                Navigator.of(context).pop();
-              },
-              child: _buildAttachmentWidget(
-                Attachment(fileName: fileName, filePath: filePath),
+        child: Container(
+          child: Column(
+            mainAxisSize: MainAxisSize.max,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              GestureDetector(
+                onTap: () {
+                  Navigator.of(context).pop();
+                },
+                child: _buildAttachmentWidget(
+                  Attachment(fileName: fileName, filePath: filePath),
+                ),
               ),
-            ),
-            ElevatedButton(
-              onPressed: () => _downloadFile(filePath, fileName),
-              child: Text('Download'),
-            ),
-          ],
+              ElevatedButton(
+                onPressed: () => _downloadFile(filePath, fileName),
+                child: Text('Download'),
+              ),
+            ],
+          ),
         ),
-      )),
+      ),
     );
   }
 

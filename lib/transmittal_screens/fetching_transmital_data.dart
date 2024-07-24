@@ -2,15 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:intl/intl.dart';
-import 'package:ojt/transmittal_screens/no_support_transmit.dart';
+import '/transmittal_screens/no_support_transmit.dart';
 
 import 'package:scrollable_table_view/scrollable_table_view.dart';
 
 import '../models/user_transaction.dart';
 import '../widgets/table.dart';
 import 'review_data.dart';
+import 'transmittal_notification.dart';
 import 'transmitter_menu.dart';
 import 'transmitter_homepage.dart';
+import 'package:badges/badges.dart' as badges;
+import 'package:badges/badges.dart';
+import '/api_services/transmitter_api.dart';
 
 class TransmittalHomePage extends StatefulWidget {
   const TransmittalHomePage({Key? key}) : super(key: key);
@@ -20,14 +24,17 @@ class TransmittalHomePage extends StatefulWidget {
 }
 
 class _TransmittalHomePageState extends State<TransmittalHomePage> {
-  late List<Transaction> transactions;
+  late List<UserTransaction> transactions;
   late bool isLoading;
   String selectedColumn = 'docRef';
   List<String> headers = ['Doc Ref', 'Payor', 'Amount'];
   bool isAscending = true;
   int currentPage = 1;
   int rowsPerPage = 20;
-  int _selectedIndex = 0; // Add this line to manage the active tab state
+  int _selectedIndex = 0;
+  int notificationCount = 0;
+  final TransmitterAPI _apiService = TransmitterAPI();
+
 
   @override
   void initState() {
@@ -66,6 +73,26 @@ class _TransmittalHomePageState extends State<TransmittalHomePage> {
     }
   }
 
+
+    Future<void> _countNotif() async {
+    try {
+      List<UserTransaction> transactions = await _apiService.countNotification();
+      setState(() {
+        notificationCount = transactions
+            .where((transaction) =>
+                transaction.onlineProcessingStatus == 'TND' ||
+                transaction.onlineProcessingStatus == 'T' &&
+                    transaction.notification == 'N')
+            .length;
+      });
+    } catch (e) {
+      throw Exception('Failed to fetch transaction details: $e');
+    }
+  }
+
+
+
+
   void _navigateToTransmitterHomePage(BuildContext context) {
     Navigator.push(
       context,
@@ -75,29 +102,31 @@ class _TransmittalHomePageState extends State<TransmittalHomePage> {
     );
   }
 
-  Future<void> fetchTransactions() async {
-    try {
-      final response = await http.get(Uri.parse(
-          'http://192.168.131.94/localconnect/fetch_transaction_data.php'));
+   Future<void> fetchTransactions() async {
+  setState(() {
+    isLoading = true;
+  });
 
-      if (response.statusCode == 200) {
-        setState(() {
-          final List<dynamic> data = json.decode(response.body);
-          transactions = data
-              .map((json) => Transaction.fromJson(json))
-              .where((transaction) => transaction.onlineProcessingStatus == 'U')
-              .toList();
-          isLoading = false;
-        });
-      } else {
-        throw Exception(
-            'Failed to load data. Status code: ${response.statusCode}');
-      }
-    } catch (e) {
-      print('Error fetching data: $e');
-      throw Exception('Failed to connect to server.');
-    }
+  try {
+    List<UserTransaction> fetchedTransactions = await TransmitterAPI().fetchTransactionsTransmit();
+    setState(() {
+      transactions = fetchedTransactions;
+      isLoading = false;
+    });
+  } catch (e) {
+    print('Error fetching data: $e');
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Failed to fetch transactions: $e'),
+        duration: Duration(seconds: 5),
+      ),
+    );
+    setState(() {
+      isLoading = false;
+    });
   }
+}
+
 
   void previousPage() {
     setState(() {
@@ -165,7 +194,7 @@ class _TransmittalHomePageState extends State<TransmittalHomePage> {
     });
   }
 
-  void navigateToDetails(Transaction transaction) {
+  void navigateToDetails(UserTransaction transaction) {
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -206,7 +235,7 @@ class _TransmittalHomePageState extends State<TransmittalHomePage> {
                   ),
                 ),
                 Image.asset(
-                  'logo.png',
+                  'assets/logo.png',
                   width: 60,
                   height: 55,
                 ),
@@ -223,33 +252,59 @@ class _TransmittalHomePageState extends State<TransmittalHomePage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                Container(
-                  margin: EdgeInsets.only(right: screenSize.width * 0.02),
-                  child: IconButton(
-                    onPressed: () {
-                      // Navigator.push(
-                      //   context,
-                      //   MaterialPageRoute(
-                      //       builder: (context) => NotificationScreen()),
-                      // );
-                    },
-                    icon: const Icon(
-                      Icons.notifications,
-                      size: 24, // Adjust size as needed
-                      color: Color.fromARGB(255, 233, 227, 227),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Container(
+                      margin: EdgeInsets.only(right: screenSize.width * 0.02),
+                      child: badges.Badge(
+                        badgeContent: Text(
+                          notificationCount > 0 ? '$notificationCount' : '',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                        badgeStyle: BadgeStyle(
+                          badgeColor: notificationCount > 0
+                              ? Colors.red
+                              : Colors.transparent,
+                          padding: EdgeInsets.all(6),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: IconButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (context) => TransmittalNotification()),
+                            );
+                          },
+                          icon: const Icon(
+                            Icons.notifications,
+                            size: 24,
+                            color: Color.fromARGB(255, 233, 227, 227),
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-                IconButton(
-                  onPressed: () {},
-                  icon: const Icon(
-                    Icons.person,
-                    size: 24, // Adjust size as needed
-                    color: Color.fromARGB(255, 233, 227, 227),
-                  ),
+                    IconButton(
+                      onPressed: () {
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                              builder: (context) => TransmitMenuWindow()),
+                        );
+                      },
+                      icon: const Icon(
+                        Icons.person,
+                        size: 24,
+                        color: Color.fromARGB(255, 233, 227, 227),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
+
+
           ],
         ),
       ),

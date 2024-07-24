@@ -7,44 +7,47 @@ import 'package:path_provider/path_provider.dart';
 import 'package:dio/dio.dart';
 import '/api_services/transmitter_api.dart';
 
-class ReprocessPreviousAttachments extends StatefulWidget {
+class RepViewPrevious extends StatefulWidget {
   final String docType;
   final String docNo;
 
-  ReprocessPreviousAttachments({
+  RepViewPrevious({
     required this.docType,
     required this.docNo,
   });
 
   @override
-  _ReprocessPreviousAttachmentsState createState() =>
-      _ReprocessPreviousAttachmentsState();
+  _RepViewPreviousState createState() =>
+      _RepViewPreviousState();
 }
 
-class _ReprocessPreviousAttachmentsState
-    extends State<ReprocessPreviousAttachments> {
+class _RepViewPreviousState
+    extends State<RepViewPrevious> {
   late Future<List<Attachment>> _attachmentsFuture;
 final TransmitterAPI _apiService = TransmitterAPI();
   @override
   void initState() {
     super.initState();
-    _attachmentsFuture = _fetchAttachments();
+    _attachmentsFuture = fetchAttachments as Future<List<Attachment>>;
   }
 
-  Widget _buildAttachmentWidget(Attachment attachment) {
+Widget _buildAttachmentWidget(Attachment attachment) {
     String fileName = attachment.fileName.toLowerCase();
+    String fileUrl =
+        'https://backend-approval.azurewebsites.net/getpics.php?docType=${Uri.encodeComponent(widget.docType)}&docNo=${Uri.encodeComponent(widget.docNo)}';
+
     if (fileName.endsWith('.jpeg') ||
         fileName.endsWith('.jpg') ||
         fileName.endsWith('.png')) {
       return Image.network(
-        'https://backend-approval.scm.azurewebsites.net/wwwroot/img/$fileName',
+        fileUrl,
         width: MediaQuery.of(context).size.width * 0.95,
         height: MediaQuery.of(context).size.height * 0.62,
         fit: BoxFit.fill,
       );
     } else if (fileName.endsWith('.pdf')) {
       return FutureBuilder(
-        future: _getPdfFile(attachment.filePath),
+        future: _getPdfFile(fileUrl),
         builder: (context, snapshot) {
           if (snapshot.hasData) {
             return SizedBox(
@@ -157,7 +160,7 @@ void _removeAttachment(int index) async {
     await _apiService.removeAttachment(attachment.filePath, attachment.fileName);
 
     setState(() {
-      _attachmentsFuture = _fetchAttachments();
+      _attachmentsFuture = fetchAttachments as Future<List<Attachment>>;
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
@@ -172,14 +175,30 @@ void _removeAttachment(int index) async {
 }
 
 
- Future<List<Attachment>> _fetchAttachments() async {
+
+Future<List<Attachment>> fetchAttachments(String docType, String docNo) async {
   try {
-    return await _apiService.fetchAttachments(widget.docType, widget.docNo);
+    var url = Uri.parse('https://backend-approval.azurewebsites.net/view_attachment.php?doc_type=$docType&doc_no=$docNo');
+    var response = await http.get(url);
+
+    if (response.statusCode == 200) {
+      var jsonData = jsonDecode(response.body);
+      if (jsonData is List) {
+        List<Attachment> fetchedAttachments = jsonData
+            .map((attachment) => Attachment.fromJson(attachment))
+            .toList();
+        
+        return fetchedAttachments;
+      } else {
+        throw Exception('Unexpected response format');
+      }
+    } else {
+      throw Exception('Failed to load attachments: ${response.statusCode}');
+    }
   } catch (e) {
     throw Exception('Failed to fetch attachments: $e');
   }
 }
-
 
   @override
   Widget build(BuildContext context) {

@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:ojt/screens_user/uploading/uploader_hompage.dart';
-import '../../transmittal_screens/uploader_history.dart';
+import '../../models/user_transaction.dart';
+import '/screens_user/uploading/uploader_hompage.dart';
+import '../uploader_history.dart';
 import '../../widgets/navBar.dart';
 import '/loginScreen.dart';
+import '../../api_services/api_services.dart';
+import 'package:badges/badges.dart' as badges;
+import 'package:badges/badges.dart'; 
 
 class UserMenuWindow extends StatefulWidget {
   const UserMenuWindow({Key? key}) : super(key: key);
@@ -13,6 +17,9 @@ class UserMenuWindow extends StatefulWidget {
 
 class _MenuState extends State<UserMenuWindow> {
   int _selectedIndex = 1;
+   int notificationCount = 0;
+     final ApiService _apiService = ApiService();
+
 
   void _onItemTapped(int index) {
     if (_selectedIndex == index) return;
@@ -33,6 +40,25 @@ class _MenuState extends State<UserMenuWindow> {
         break;
     }
   }
+
+  Future<void> _countNotif() async {
+    try {
+      List<UserTransaction> transactions = await _apiService.fetchTransactionDetails();
+      setState(() {
+        notificationCount = transactions
+            .where((transaction) =>
+           transaction.onlineProcessingStatus == 'U' ||
+           transaction.onlineProcessingStatus == 'ND' ||
+           transaction.onlineProcessingStatus == 'R'  &&
+                    transaction.notification == 'N')
+            .length;
+      });
+    } catch (e) {
+      throw Exception('Failed to fetch transaction details: $e');
+    }
+  }
+
+
 
   @override
   Widget build(BuildContext context) {
@@ -64,17 +90,27 @@ class _MenuState extends State<UserMenuWindow> {
                 ),
               ],
             ),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                Container(
-                  margin: EdgeInsets.only(right: screenSize.width * 0.02),
+           Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              Container(
+                margin: EdgeInsets.only(right: screenSize.width * 0.02),
+                child: badges.Badge(
+                  badgeContent: Text(
+                    '$notificationCount',  // Display the number of notifications
+                    style: TextStyle(color: Colors.white),
+                  ),
+                  badgeStyle: BadgeStyle(
+                    badgeColor: Colors.red,
+                    padding: EdgeInsets.all(6),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                   child: IconButton(
                     onPressed: () {
                       // Navigator.push(
                       //   context,
                       //   MaterialPageRoute(
-                      //       builder: (context) => NotificationScreen()),
+                      //       builder: (context) => TransmittalNotification()),
                       // );
                     },
                     icon: const Icon(
@@ -84,16 +120,24 @@ class _MenuState extends State<UserMenuWindow> {
                     ),
                   ),
                 ),
-                IconButton(
-                  onPressed: () {},
-                  icon: const Icon(
-                    Icons.person,
-                    size: 24,
-                    color: Color.fromARGB(255, 233, 227, 227),
-                  ),
+              ),
+              IconButton(
+                onPressed: () {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => const UserMenuWindow()),
+                  );
+                },
+                icon: const Icon(
+                  Icons.person,
+                  size: 24,
+                  color: Color.fromARGB(255, 233, 227, 227),
                 ),
-              ],
-            ),
+              ),
+            ],
+          ),
+
           ],
         ),
       ),

@@ -2,24 +2,29 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../../models/user_transaction.dart';
+import '../uploader_notification.dart';
+import '../uploading/user_menu.dart';
 import '/transmittal_screens/transmittal_notification.dart';
 import '/api_services/transmitter_api.dart';
-import '../models/user_transaction.dart';
+
 import 'package:http/http.dart' as http;
-import 'fetch_reprocessing.dart';
-import 'rep_add_attachments.dart';
-import 'reprocess_view_previous_attachments.dart';
-import 'reprocessing_menu.dart';
+import 'rep_view_previous.dart';
+
+import 'reprocessing.dart';
+
 import 'package:badges/badges.dart' as badges;
 import 'package:badges/badges.dart';
 
-class ReprocessDetails extends StatefulWidget {
+import 'user_reprocessing_add_attachment.dart';
+
+class RepDetails extends StatefulWidget {
   final UserTransaction transaction;
   final List<String> selectedDetails;
 
   
 
-  ReprocessDetails({
+  RepDetails({
     Key? key,
     required this.transaction,
     required this.selectedDetails,
@@ -34,7 +39,7 @@ String createDocRef(String docType, String docNo) {
   return '$docType#$docNo';
 }
 
-class _TransmitterSendAttachmentState extends State<ReprocessDetails> {
+class _TransmitterSendAttachmentState extends State<RepDetails> {
   int _selectedIndex = 0;
   bool _isLoading = false;
    int notificationCount = 0; 
@@ -44,7 +49,27 @@ class _TransmitterSendAttachmentState extends State<ReprocessDetails> {
   @override
   void initState() {
     super.initState();
+    _countNotif();
   }
+
+
+  Future<void> _countNotif() async {
+    try {
+      List<UserTransaction> transactions = await _apiService.fetchTransactionDetails();
+      setState(() {
+        notificationCount = transactions
+            .where((transaction) =>
+           transaction.onlineProcessingStatus == 'U' ||
+           transaction.onlineProcessingStatus == 'ND' ||
+           transaction.onlineProcessingStatus == 'R' &&
+                    transaction.notification == 'N')
+            .length;
+      });
+    } catch (e) {
+      throw Exception('Failed to fetch transaction details: $e');
+    }
+  }
+
 
   String formatDate(DateTime date) {
     final DateFormat formatter = DateFormat('MM/dd/yyyy');
@@ -71,30 +96,15 @@ class _TransmitterSendAttachmentState extends State<ReprocessDetails> {
       case 0:
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const FetchReprocess()),
+          MaterialPageRoute(builder: (context) => const Reprocess()),
         );
         break;
       case 1:
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const ReprocessMenuWindow()),
+          MaterialPageRoute(builder: (context) => const UserMenuWindow()),
         );
         break;
-    }
-  }
-   Future<void> _countNotif() async {
-    try {
-      List<UserTransaction> transactions = await _apiService.countNotification();
-      setState(() {
-        notificationCount = transactions
-            .where((transaction) =>
-                transaction.onlineProcessingStatus == 'TND' ||
-                transaction.onlineProcessingStatus == 'T' &&
-                    transaction.notification == 'N')
-            .length;
-      });
-    } catch (e) {
-      throw Exception('Failed to fetch transaction details: $e');
     }
   }
 
@@ -149,7 +159,7 @@ Widget buildDetailsCard(UserTransaction detail) {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => ReprocessPreviousAttachments(
+                          builder: (context) => RepViewPrevious(
                             docType: widget.transaction.docType,
                             docNo: widget.transaction.docNo,
                           ),
@@ -168,7 +178,7 @@ Widget buildDetailsCard(UserTransaction detail) {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => RepAddAttachments(
+                          builder: (context) => UploaderRepAddAttachments(
                             transaction: detail,
                             selectedDetails: [],
                           ),
@@ -190,7 +200,7 @@ Widget buildDetailsCard(UserTransaction detail) {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => FetchReprocess(key: Key('value')),
+                                builder: (context) => Reprocess(key: Key('value')),
                               ),
                             );
                           },
@@ -330,7 +340,7 @@ Widget buildDetailsCard(UserTransaction detail) {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                  builder: (context) => TransmittalNotification()),
+                                  builder: (context) => UploaderNotification()),
                             );
                           },
                           icon: const Icon(
@@ -346,7 +356,7 @@ Widget buildDetailsCard(UserTransaction detail) {
                         Navigator.pushReplacement(
                           context,
                           MaterialPageRoute(
-                              builder: (context) => ReprocessMenuWindow()),
+                              builder: (context) => UserMenuWindow()),
                         );
                       },
                       icon: const Icon(

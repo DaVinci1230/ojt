@@ -1,12 +1,15 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import '/admin_screens/approver_notification.dart';
 import 'disbursement_check.dart';
 import 'admin_menu_window.dart';
-import 'notifications.dart';
 import '/widgets/card.dart';
 import '/models/admin_transaction.dart';
 import 'package:intl/intl.dart';
+import 'package:badges/badges.dart' as badges;
+import 'package:badges/badges.dart';
+import '/api_services/api_services_admin.dart';
 
 class AdminHomePage extends StatefulWidget {
   const AdminHomePage({Key? key}) : super(key: key);
@@ -15,50 +18,52 @@ class AdminHomePage extends StatefulWidget {
 }
 
 class _AdminHomePageState extends State<AdminHomePage> {
+  int notificationCount = 0;
   int _selectedIndex = 0;
   int pendingCount = 0;
   late Future<List<Transaction>> _transactionsFuture;
   List<Transaction> selectedTransactions = [];
   double totalSelectedAmount = 0.0;
   bool allSelected = false;
+  final ApiServiceAdmin _apiServiceAdmin = ApiServiceAdmin();
 
   @override
   void initState() {
     super.initState();
     _transactionsFuture = _fetchTransactionDetails();
+    _countNotif();
   }
 
   Future<List<Transaction>> _fetchTransactionDetails() async {
     try {
-      var url = Uri.parse('http://192.168.131.94/localconnect/get_transaction.php');
-      var response = await http.get(url);
+      List<Transaction> transactions =
+          await _apiServiceAdmin.fetchTransactionDetails();
 
-      if (response.statusCode == 200) {
-        var jsonData = jsonDecode(response.body);
-        if (jsonData is List) {
-          List<Transaction> fetchedTransactions = jsonData
-              .map((transaction) => Transaction.fromJson(transaction))
-              .toList();
+      setState(() {
+        pendingCount = transactions
+            .where((transaction) =>
+                transaction.onlineTransactionStatus == 'TND' ||
+                transaction.onlineTransactionStatus == 'T')
+            .length;
+      });
 
-          fetchedTransactions.sort(
-              (a, b) => b.onlineProcessDate.compareTo(a.onlineProcessDate));
+      return transactions;
+    } catch (e) {
+      throw Exception('Failed to fetch transaction details: $e');
+    }
+  }
 
-          setState(() {
-            pendingCount = fetchedTransactions
-                .where((transaction) =>
-                    transaction.onlineTransactionStatus == 'TND' ||
-                    transaction.onlineTransactionStatus == 'T')
-                .length;
-          });
-
-          return fetchedTransactions;
-        } else {
-          throw Exception('Unexpected response format');
-        }
-      } else {
-        throw Exception(
-            'Failed to load transaction details: ${response.statusCode}');
-      }
+  Future<void> _countNotif() async {
+    try {
+      List<Transaction> transactions = await _apiServiceAdmin.fetchTransactionDetails();
+      setState(() {
+        notificationCount = transactions
+            .where((transaction) =>
+                transaction.onlineTransactionStatus == 'TND' ||
+                transaction.onlineTransactionStatus == 'T' &&
+                    transaction.notification == 'N')
+            .length;
+      });
     } catch (e) {
       throw Exception('Failed to fetch transaction details: $e');
     }
@@ -67,6 +72,13 @@ class _AdminHomePageState extends State<AdminHomePage> {
   void _refreshTransactionList() {
     setState(() {
       _transactionsFuture = _fetchTransactionDetails();
+      selectedTransactions.clear();
+      totalSelectedAmount = 0.0;
+    });
+  }
+
+  void _resetTransactions() {
+    setState(() {
       selectedTransactions.clear();
       totalSelectedAmount = 0.0;
     });
@@ -85,72 +97,112 @@ class _AdminHomePageState extends State<AdminHomePage> {
 
   Future<void> _approvedTransaction(List<Transaction> transactions) async {
     try {
-      for (Transaction transaction in transactions) {
-        final response = await http.post(
-          Uri.parse('http://192.168.131.94/localconnect/approve.php'),
-          body: {
-            'doc_no': transaction.docNo,
-            'doc_type': transaction.docType,
-          },
-        );
-
-        if (response.statusCode == 200) {
-          var responseData = json.decode(response.body);
-          if (responseData['status'] == 'success') {
-            // Handle success message if needed
-            print('Transaction ${transaction.docNo} approved successfully');
-          } else {
-            throw Exception(
-                'Failed to approve transaction ${transaction.docNo}');
-          }
-        } else {
-          throw Exception('Failed to approve transaction ${transaction.docNo}');
-        }
-      }
-      // Show a single success message if all transactions were successfully declined
+      await _apiServiceAdmin.approveTransactions(transactions);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Transactions approved successfully')),
       );
       _refreshTransactionList();
     } catch (e) {
-      print('Error rejeceting transactions: $e');
+      print('Error approving transactions: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error approve transactions: $e')),
+        SnackBar(content: Text('Error approving transactions: $e')),
       );
     }
   }
 
+  Future<void> _returnTransaction(
+      List<Transaction> transactions, String approverRemarks) async {
+    try {
+      await _apiServiceAdmin.returnTransactions(transactions, approverRemarks);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Transactions returned successfully')),
+      );
+      _refreshTransactionList();
+    } catch (e) {
+      print('Error returning transactions: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error returning transactions: $e')),
+      );
+    }
+  }
+
+  void _showDialog(
+      BuildContext context, List<Transaction> selectedTransactions) {
+    TextEditingController _remarksController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Remarks for Selected Transactions'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Selected Transactions:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              ...selectedTransactions
+                  .map((transaction) =>
+                      Text('${transaction.docNo} - ${transaction.docType}'))
+                  .toList(),
+              SizedBox(height: 10),
+              TextField(
+                controller: _remarksController,
+                decoration: InputDecoration(
+                  hintText: 'Enter your remarks here',
+                ),
+              ),
+            ],
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: Text('Cancel'),
+              onPressed: () {
+                Navigator.of(context).pop(); // Close the dialog
+              },
+            ),
+            ElevatedButton(
+              child: Text('Send'),
+              onPressed: () {
+                String remarks = _remarksController.text.trim();
+                if (remarks.isNotEmpty) {
+                  print('Remarks: $remarks');
+                  _returnTransaction(selectedTransactions, remarks).then((_) {
+                    Navigator.of(context)
+                        .pop(); // Close the dialog after successful transaction
+                  }).catchError((error) {
+                    print('Error updating remarks: $error');
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Error updating remarks: $error'),
+                      ),
+                    );
+                  });
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Remarks cannot be empty'),
+                    ),
+                  );
+                }
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Future<void> _rejectTransaction(List<Transaction> transactions) async {
     try {
-      for (Transaction transaction in transactions) {
-        final response = await http.post(
-          Uri.parse('http://192.168.131.94/localconnect/reject.php'),
-          body: {
-            'doc_no': transaction.docNo,
-            'doc_type': transaction.docType,
-          },
-        );
-
-        if (response.statusCode == 200) {
-          var responseData = json.decode(response.body);
-          if (responseData['status'] == 'success') {
-            // Handle success message if needed
-            print('Transaction ${transaction.docNo} rejected successfully');
-          } else {
-            throw Exception(
-                'Failed to reject transaction ${transaction.docNo}');
-          }
-        } else {
-          throw Exception('Failed to reject transaction ${transaction.docNo}');
-        }
-      }
-      // Show a single success message if all transactions were successfully declined
+      await _apiServiceAdmin.rejectTransactions(transactions);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Transactions rejected successfully')),
       );
       _refreshTransactionList();
     } catch (e) {
-      print('Error rejeceting transactions: $e');
+      print('Error rejecting transactions: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error rejecting transactions: $e')),
       );
@@ -259,36 +311,54 @@ class _AdminHomePageState extends State<AdminHomePage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                Container(
-                  margin: EdgeInsets.only(right: screenSize.width * 0.02),
-                  child: IconButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (context) => NotificationScreen()),
-                      );
-                    },
-                    icon: const Icon(
-                      Icons.notifications,
-                      size: 24, // Adjust size as needed
-                      color: Color.fromARGB(255, 233, 227, 227),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Container(
+                      margin: EdgeInsets.only(right: screenSize.width * 0.02),
+                      child: badges.Badge(
+                        badgeContent: Text(
+                          notificationCount > 0 ? '$notificationCount' : '',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                        badgeStyle: BadgeStyle(
+                          badgeColor: notificationCount > 0
+                              ? Colors.red
+                              : Colors.transparent,
+                          padding: EdgeInsets.all(6),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: IconButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (context) => ApproverNotification()),
+                            );
+                          },
+                          icon: const Icon(
+                            Icons.notifications,
+                            size: 24,
+                            color: Color.fromARGB(255, 233, 227, 227),
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-                IconButton(
-                  onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (context) => const AdminMenuWindow()),
-                );
-                  },
-                  icon: const Icon(
-                    Icons.person,
-                    size: 24, // Adjust size as needed
-                    color: Color.fromARGB(255, 233, 227, 227),
-                  ),
+                    IconButton(
+                      onPressed: () {
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                              builder: (context) => AdminMenuWindow()),
+                        );
+                      },
+                      icon: const Icon(
+                        Icons.person,
+                        size: 24,
+                        color: Color.fromARGB(255, 233, 227, 227),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -452,6 +522,14 @@ class _AdminHomePageState extends State<AdminHomePage> {
                                   },
                                   isSelected: selectedTransactions
                                       .contains(transaction),
+                                  onResetTransactions: () {
+                                    setState(() {
+                                      _transactionsFuture =
+                                          _fetchTransactionDetails();
+                                      selectedTransactions.clear();
+                                      totalSelectedAmount = 0.0;
+                                    });
+                                  },
                                 );
                               }).toList(),
                             ),
@@ -471,63 +549,76 @@ class _AdminHomePageState extends State<AdminHomePage> {
         visible: totalSelectedAmount > 0,
         child: AnimatedContainer(
           duration: Duration(milliseconds: 500),
-          width: screenSize.width * 0.6,
+          width: screenSize.width * 0.61,
           margin: EdgeInsets.only(
-            bottom: screenSize.height *
-                0.02, // Margin from bottom adjusted based on screen height
-            right: screenSize.width *
-                0.005, // Margin from right adjusted based on screen width
+            bottom: screenSize.height * 0.02,
+            right: screenSize.width * 0.005,
           ),
-          padding: EdgeInsets.all(screenSize.width *
-              0.02), // Padding adjusted based on screen width
+          padding: EdgeInsets.all(screenSize.width * 0.02),
           decoration: BoxDecoration(
-            color: Color.fromARGB(255, 0, 0, 0), // Transparent background
+            color: Color.fromARGB(255, 0, 0, 0),
             border: Border.all(color: Colors.blue, width: 2),
             borderRadius: BorderRadius.only(
-              topLeft: Radius.circular(screenSize.width *
-                  0.05), // Border radius adjusted based on screen width
-              topRight: Radius.circular(screenSize.width *
-                  0.00), // Border radius adjusted based on screen width
-              bottomLeft: Radius.circular(screenSize.width *
-                  0.05), // Border radius adjusted based on screen width
+              topLeft: Radius.circular(screenSize.width * 0.05),
+              topRight: Radius.circular(screenSize.width * 0.00),
+              bottomLeft: Radius.circular(screenSize.width * 0.05),
               bottomRight: Radius.circular(0),
             ),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              SizedBox(width: screenSize.width * 0.02),
+              SizedBox(width: screenSize.width * 0.01),
               ElevatedButton.icon(
                 onPressed: () {
                   _approvedTransaction(selectedTransactions);
-                  // _handleApproveAction(selectedTransactions);
                 },
                 icon: Icon(Icons.check,
-                    size: screenSize.width * 0.05,
-                    color: Colors
-                        .white), // Icon size adjusted based on screen width
+                    size: screenSize.width * 0.025, color: Colors.white),
                 label: Text(
                   'Approve',
                   style: TextStyle(
-                      fontSize: screenSize.width * 0.03,
-                      color: Colors
-                          .white), // Text size adjusted based on screen width
+                      fontSize: screenSize.width * 0.025, color: Colors.white),
                 ),
                 style: ElevatedButton.styleFrom(
                   padding: EdgeInsets.symmetric(
                       horizontal: screenSize.width * 0.02,
-                      vertical: screenSize.width *
-                          0.015), // Padding adjusted based on screen width
-                  backgroundColor: Colors.blue, // Blue background color
-                  elevation: 0, // Remove shadow
-                  shadowColor: Colors.transparent, // Remove shadow color
+                      vertical: screenSize.width * 0.015),
+                  backgroundColor: Colors.blue,
+                  elevation: 0,
+                  shadowColor: Colors.transparent,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(screenSize.width *
-                        0.04), // Button border radius adjusted based on screen width
+                    borderRadius:
+                        BorderRadius.circular(screenSize.width * 0.04),
                     side: BorderSide(
-                        color: Colors.blue,
-                        width: screenSize.width *
-                            0.01), // Button border width adjusted based on screen width
+                        color: Colors.blue, width: screenSize.width * 0.01),
+                  ),
+                ),
+              ),
+              SizedBox(width: screenSize.width * 0.01),
+              ElevatedButton.icon(
+                onPressed: () {
+                  _showDialog(context, selectedTransactions);
+                },
+                icon: Icon(Icons.keyboard_return_outlined,
+                    size: screenSize.width * 0.025, color: Colors.white),
+                label: Text(
+                  'Return',
+                  style: TextStyle(
+                      fontSize: screenSize.width * 0.025, color: Colors.white),
+                ),
+                style: ElevatedButton.styleFrom(
+                  padding: EdgeInsets.symmetric(
+                      horizontal: screenSize.width * 0.015,
+                      vertical: screenSize.width * 0.015),
+                  backgroundColor: Colors.blue,
+                  elevation: 0,
+                  shadowColor: Colors.transparent,
+                  shape: RoundedRectangleBorder(
+                    borderRadius:
+                        BorderRadius.circular(screenSize.width * 0.04),
+                    side: BorderSide(
+                        color: Colors.blue, width: screenSize.width * 0.01),
                   ),
                 ),
               ),
@@ -537,31 +628,24 @@ class _AdminHomePageState extends State<AdminHomePage> {
                   _rejectTransaction(selectedTransactions);
                 },
                 icon: Icon(Icons.cancel_rounded,
-                    size: screenSize.width * 0.03,
-                    color: Colors
-                        .white), // Icon size adjusted based on screen width
+                    size: screenSize.width * 0.025, color: Colors.white),
                 label: Text(
                   'Reject',
                   style: TextStyle(
-                      fontSize: screenSize.width * 0.03,
-                      color: Colors
-                          .white), // Text size adjusted based on screen width
+                      fontSize: screenSize.width * 0.025, color: Colors.white),
                 ),
                 style: ElevatedButton.styleFrom(
                   padding: EdgeInsets.symmetric(
-                      horizontal: screenSize.width * 0.02,
-                      vertical: screenSize.width *
-                          0.015), // Padding adjusted based on screen width
-                  backgroundColor: Colors.blue, // Blue background color
-                  elevation: 0, // Remove shadow
-                  shadowColor: Colors.transparent, // Remove shadow color
+                      horizontal: screenSize.width * 0.015,
+                      vertical: screenSize.width * 0.015),
+                  backgroundColor: Colors.blue,
+                  elevation: 0,
+                  shadowColor: Colors.transparent,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(screenSize.width *
-                        0.04), // Button border radius adjusted based on screen width
+                    borderRadius:
+                        BorderRadius.circular(screenSize.width * 0.04),
                     side: BorderSide(
-                        color: Colors.blue,
-                        width: screenSize.width *
-                            0.01), // Button border width adjusted based on screen width
+                        color: Colors.blue, width: screenSize.width * 0.01),
                   ),
                 ),
               ),

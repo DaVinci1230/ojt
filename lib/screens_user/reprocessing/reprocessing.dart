@@ -2,25 +2,28 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:intl/intl.dart';
-import 'package:ojt/screens_user/uploading/user_add_attachment.dart';
-import '../models/user_transaction.dart';
-import '../widgets/table.dart';
-import 'reprocess_details.dart';
-import 'reprocessing_menu.dart';
-import 'transmittal_notification.dart';
-import 'transmitter_homepage.dart';
+import '../uploader_notification.dart';
+import '/models/user_transaction.dart';
+import '/screens_user/uploading/user_add_attachment.dart';
+import '../../transmittal_screens/transmittal_notification.dart';
+import '../../widgets/table.dart';
+import '../uploading/uploader_hompage.dart';
+import '../uploading/user_menu.dart';
+
+import 'rep_details.dart';
+
 import '/api_services/transmitter_api.dart';
 import 'package:badges/badges.dart' as badges;
 import 'package:badges/badges.dart';
 
-class FetchReprocess extends StatefulWidget {
-  const FetchReprocess({Key? key}) : super(key: key);
+class Reprocess extends StatefulWidget {
+  const Reprocess({Key? key}) : super(key: key);
 
   @override
-  _FetchReprocessState createState() => _FetchReprocessState();
+  _ReprocessState createState() => _ReprocessState();
 }
 
-class _FetchReprocessState extends State<FetchReprocess> {
+class _ReprocessState extends State<Reprocess> {
   late List<UserTransaction> transactions;
   late bool isLoading;
   String selectedColumn = 'docRef';
@@ -39,6 +42,7 @@ final TransmitterAPI _apiService = TransmitterAPI();
     isLoading = true;
     transactions = [];
     fetchTransactions();
+    _countNotif();
   }
 
   void _onItemTapped(int index) {
@@ -58,7 +62,7 @@ final TransmitterAPI _apiService = TransmitterAPI();
       case 1:
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const ReprocessMenuWindow()),
+          MaterialPageRoute(builder: (context) => const UserMenuWindow()),
         );
         break;
     }
@@ -87,7 +91,7 @@ final TransmitterAPI _apiService = TransmitterAPI();
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => const TransmitterHomePage(key: Key('value')),
+        builder: (context) => const UploaderHomePage(key: Key('value')),
       ),
     );
   }
@@ -188,7 +192,7 @@ final TransmitterAPI _apiService = TransmitterAPI();
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => ReprocessDetails(
+        builder: (context) => RepDetails(
           transaction: transaction,
           selectedDetails: [], // Adjust based on your requirements
         ),
@@ -264,7 +268,7 @@ final TransmitterAPI _apiService = TransmitterAPI();
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                  builder: (context) => TransmittalNotification()),
+                                  builder: (context) => UploaderNotification()),
                             );
                           },
                           icon: const Icon(
@@ -280,7 +284,7 @@ final TransmitterAPI _apiService = TransmitterAPI();
                         Navigator.pushReplacement(
                           context,
                           MaterialPageRoute(
-                              builder: (context) => ReprocessMenuWindow()),
+                              builder: (context) => UserMenuWindow()),
                         );
                       },
                       icon: const Icon(
